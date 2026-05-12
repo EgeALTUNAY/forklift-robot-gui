@@ -15,6 +15,10 @@ export function DemoControlPanel({ status }: Props) {
 
   useEffect(() => {
     setLocalStatus(status ?? null);
+
+    if (status) {
+      setError(null);
+    }
   }, [status]);
 
   const visibleStatus = status ?? localStatus;
@@ -29,6 +33,7 @@ export function DemoControlPanel({ status }: Props) {
     try {
       const response = await action();
       setLocalStatus(response.status);
+      setError(null);
       setMessage(response.message ?? `${label} komutu gönderildi.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Demo komutu gönderilemedi.");
@@ -44,6 +49,7 @@ export function DemoControlPanel({ status }: Props) {
     try {
       const nextStatus = await getDemoStatus();
       setLocalStatus(nextStatus);
+      setError(null);
       setMessage("Demo durumu yenilendi.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Demo durumu alınamadı.");
