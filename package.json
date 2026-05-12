@@ -1,0 +1,20 @@
+{
+  "name": "forklift-robot-gui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root developer tooling for the Forklift Robot GUI project.",
+  "scripts": {
+    "help": "node -e 'console.log(`Kullanilabilir komutlar:\\n\\n  npm run dev:fake\\n    Frontend + GUI Backend acilir. Robot backend gerekmez; GUI Backend fake client ile calisir.\\n    Hizli UI gelistirme ve dashboard testi icin kullanilir. Digital Twin Demo Mode gercekci sekilde burada calismayabilir; asil demo icin dev:mock kullanilmalidir.\\n\\n  npm run dev:mock\\n    Mock Robot Backend :9000, GUI Backend :8000 ve Frontend :5173 acilir.\\n    GUI Backend ROBOT_CLIENT_MODE=real ve ROBOT_BACKEND_URL=http://localhost:9000 ile calisir.\\n    Entegrasyon testi ve Digital Twin Demo Mode icin onerilir. Demo sekmesindeki \"Demo Gorevini Baslat\" burada kullanilmalidir.\\n\\n  npm run frontend:dev\\n    Sadece React frontend dev server acilir.\\n\\n  npm run backend:fake\\n    Sadece GUI Backend fake mode ile :8000 portunda acilir.\\n\\n  npm run mock:backend\\n    Sadece Mock Robot Backend :9000 portunda acilir.\\n\\n  npm run backend:mock\\n    Sadece GUI Backend real mode ile mock backend baglantisiyla :8000 portunda acilir.\\n\\n  npm run build\\n    Frontend production build calisir; backend icin python compileall ve ana modul import kontrolu yapilir.\\n\\n  npm run check\\n    Demo oncesi hizli dogrulama komutu; su an build ile ayni kontrolleri calistirir.\\n\\ndev:fake vs dev:mock:\\n  dev:fake robot backend olmadan hizli UI/fake data testi icindir.\\n  dev:mock mock backend + GUI backend + frontend zincirini calistirir ve Digital Twin Demo Mode icin onerilen komuttur.`)'",
+    "dev:fake": "concurrently -n frontend,gui-backend -c blue,green \"npm run frontend:dev\" \"npm run backend:fake\"",
+    "dev:mock": "concurrently -n mock-backend,gui-backend,frontend -c magenta,green,blue \"npm run mock:backend\" \"npm run backend:mock\" \"npm run frontend:dev\"",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "backend:fake": "cd backend && ROBOT_CLIENT_MODE=fake ../venv/bin/python -m uvicorn app.main:app --reload --port 8000",
+    "mock:backend": "cd backend && ../venv/bin/python -m uvicorn mock_robot_backend.main:app --reload --port 9000",
+    "backend:mock": "cd backend && ROBOT_CLIENT_MODE=real ROBOT_BACKEND_URL=http://localhost:9000 ../venv/bin/python -m uvicorn app.main:app --reload --port 8000",
+    "build": "npm --prefix frontend run build && cd backend && ../venv/bin/python -m compileall -q app mock_robot_backend && ../venv/bin/python -c \"import app.main; import mock_robot_backend.main\"",
+    "check": "npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

@@ -133,6 +133,30 @@ npm install
 
 ---
 
+## NPM Scriptleri
+
+Proje kök dizininden aşağıdaki komutlar çalıştırılabilir:
+
+| Komut | Ne açar? | Ne zaman kullanılır? |
+| --- | --- | --- |
+| `npm run help` | Kullanılabilir root komutlarını ve açıklamalarını terminale yazar. | Hangi modun ne işe yaradığını hızlıca görmek için kullanılır. |
+| `npm run dev:fake` | React frontend + GUI Backend açılır. Robot backend gerekmez; GUI Backend fake client ile çalışır. | Hızlı UI/fake data testi, dashboard geliştirme ve robot backend olmadan deneme için kullanılır. Digital Twin Demo Mode gerçekçi şekilde burada çalışmayabilir. |
+| `npm run dev:mock` | Mock Robot Backend `:9000`, GUI Backend `:8000` ve frontend `:5173` açılır. GUI Backend `ROBOT_CLIENT_MODE=real` ve `ROBOT_BACKEND_URL=http://localhost:9000` ile çalışır. | Entegrasyon testi ve Digital Twin Demo Mode için önerilir. Demo sekmesindeki **Demo Görevini Başlat** bu modda kullanılmalıdır. |
+| `npm run frontend:dev` | Sadece React frontend dev server açılır. | Backend zaten çalışırken yalnızca frontend geliştirmek için kullanılır. |
+| `npm run backend:fake` | Sadece GUI Backend fake mode ile açılır. | Frontend’i ayrı çalıştırıp GUI Backend’i fake data ile test etmek için kullanılır. |
+| `npm run mock:backend` | Sadece Mock Robot Backend `:9000` portunda açılır. | GUI Backend veya entegrasyon akışlarını mock robot servisine karşı denemek için kullanılır. |
+| `npm run backend:mock` | Sadece GUI Backend real mode’da, mock backend’e bağlı şekilde açılır. | Mock Robot Backend zaten çalışırken GUI Backend entegrasyonunu test etmek için kullanılır. |
+| `npm run build` | Frontend production build çalıştırır; backend için `python compileall` ve ana modül import kontrolü yapar. | Demo veya teslim öncesi frontend build + backend syntax/import check doğrulaması için kullanılır. |
+| `npm run check` | Şimdilik `npm run build` ile aynı kontrolleri çalıştırır. | Demo öncesi hızlı doğrulama komutu olarak kullanılır. |
+
+Kısa özet:
+
+- `dev:fake` = hızlı UI/fake data testi
+- `dev:mock` = mock backend + GUI backend + frontend; Digital Twin Demo Mode için önerilir
+- `build` = frontend build + backend compile/import check
+
+---
+
 ## Environment Ayarları
 
 Root veya backend tarafında `.env` kullanılabilir.
