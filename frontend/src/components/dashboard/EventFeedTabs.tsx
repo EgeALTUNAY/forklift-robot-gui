@@ -5,13 +5,14 @@ import { QrPanel } from "./QrPanel";
 import { PlcLogPanel } from "./PlcLogPanel";
 import { ManualControlPanel } from "./ManualControlPanel";
 import { ManualControlStatusCard } from "./ManualControlStatusCard";
+import { DemoControlPanel } from "./DemoControlPanel";
 
 interface Props {
   snapshot: DashboardSnapshot;
 }
 
 export function EventFeedTabs({ snapshot }: Props) {
-  const [activeTab, setActiveTab] = useState<"plc" | "qr" | "logs" | "manual">("plc");
+  const [activeTab, setActiveTab] = useState<"plc" | "qr" | "logs" | "manual" | "demo">("plc");
 
   return (
     <div className="card event-feed-tabs">
@@ -40,6 +41,12 @@ export function EventFeedTabs({ snapshot }: Props) {
         >
           Manuel Kontrol & Test
         </button>
+        <button
+          className={`tab-btn ${activeTab === 'demo' ? 'active' : ''}`}
+          onClick={() => setActiveTab('demo')}
+        >
+          Demo
+        </button>
       </div>
 
       <div className="tab-content">
@@ -62,6 +69,11 @@ export function EventFeedTabs({ snapshot }: Props) {
           <div className="manual-tab-stack">
              <ManualControlStatusCard status={snapshot.manual_control_status} />
              <ManualControlPanel status={snapshot.manual_control_status} />
+          </div>
+        )}
+        {activeTab === 'demo' && (
+          <div className="demo-tab-stack">
+            <DemoControlPanel status={snapshot.demo_status} />
           </div>
         )}
       </div>

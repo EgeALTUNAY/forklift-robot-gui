@@ -72,6 +72,12 @@ body {
   gap: 12px;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .topbar-logo {
   width: 28px;
   height: 28px;
@@ -104,6 +110,20 @@ body {
 .topbar-sub {
   font-size: 13px;
   color: var(--text-3);
+}
+
+.demo-running-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #FEDF89;
+  border-radius: 999px;
+  background: var(--amber-bg);
+  color: var(--amber-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* ─── Connection ─── */
@@ -2685,6 +2705,104 @@ body {
   flex-direction: column;
   gap: 10px;
   max-width: 760px;
+}
+
+.demo-tab-stack {
+  max-width: 760px;
+}
+
+.demo-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 14px;
+}
+
+.demo-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #FEDF89;
+  border-radius: var(--r-md);
+  background: var(--amber-bg);
+  color: var(--amber-text);
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.demo-warning strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.demo-warning span {
+  font-weight: 600;
+}
+
+.demo-control-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.demo-control-grid div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  padding: 9px 10px;
+}
+
+.demo-control-grid span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.demo-control-grid strong {
+  display: block;
+  color: var(--text-1);
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.demo-description {
+  margin: 0;
+  border-radius: var(--r-md);
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.demo-message,
+.demo-error {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.demo-message {
+  color: var(--text-3);
+}
+
+.demo-error {
+  color: var(--red-text);
 }
 
 .manual-status-card {

@@ -1,7 +1,52 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Body
 
 app = FastAPI(title="Mock Robot Backend")
+
+DEMO_ROUTE_NODES = ["START", "D1", "D2", "A2", "D2", "D3", "GATE", "D4", "D6", "B3"]
+DEMO_ROUTE_SEGMENTS = [
+    "START_D1",
+    "D1_D2",
+    "D2_A2",
+    "D2_A2",
+    "D2_D3",
+    "D3_GATE",
+    "GATE_D4",
+    "D4_D6",
+    "D6_B3",
+]
+DEMO_QR_SEQUENCE = ["q1", "q3", "q5", "q6", "q7"]
+DEMO_STEP_SECONDS = 4
+DEMO_TOTAL_STEPS = len(DEMO_ROUTE_SEGMENTS)
+DEMO_TOTAL_SECONDS = DEMO_TOTAL_STEPS * DEMO_STEP_SECONDS
+
+QR_EVENTS_BY_STEP = [
+    (1, "q1", "START_D1"),
+    (3, "q3", "A2"),
+    (6, "q5", "D3_GATE"),
+    (7, "q6", "GATE_D4"),
+    (9, "q7", "B3"),
+]
+
+PLC_MESSAGES_BY_STEP = [
+    (0, "DEMO-PLC-001", "PLC_TO_ROBOT", "TASK_ASSIGNMENT", "Görev Atama", '{"task_id": "DEMO-A2-B3", "pickup": "A2", "dropoff": "B3"}'),
+    (6, "DEMO-PLC-002", "ROBOT_TO_PLC", "DOOR_PERMISSION_REQUEST", "Kapı İzin Talebi", '{"gate_id": "GATE", "robot_id": "DEMO-R1"}'),
+    (7, "DEMO-PLC-003", "PLC_TO_ROBOT", "DOOR_PERMISSION_RESPONSE", "Kapı İzin Yanıtı", '{"gate_id": "GATE", "access": "granted"}'),
+    (9, "DEMO-PLC-004", "ROBOT_TO_PLC", "STATUS_UPDATE", "Görev Tamamlandı", '{"task_id": "DEMO-A2-B3", "result": "completed"}'),
+]
+
+
+def _initial_demo_state():
+    return {
+        "demo_running": False,
+        "demo_has_state": False,
+        "demo_step_index": 0,
+        "demo_route_nodes": DEMO_ROUTE_NODES.copy(),
+        "demo_start_time": None,
+        "demo_paused_at": None,
+        "demo_paused_elapsed_seconds": 0.0,
+    }
+
 
 # In-memory state for dev/test
 state = {
@@ -13,7 +58,177 @@ state = {
     "speed": 0.0,
     "last_manual_command": None,
     "active_route": None,
+    "demo": _initial_demo_state(),
 }
+
+
+def _demo_elapsed_seconds() -> float:
+    demo = state["demo"]
+
+    if demo["demo_running"] and demo["demo_start_time"] is not None:
+        elapsed = (datetime.utcnow() - demo["demo_start_time"]).total_seconds()
+        if elapsed >= DEMO_TOTAL_SECONDS:
+            demo["demo_running"] = False
+            demo["demo_start_time"] = None
+            demo["demo_paused_at"] = datetime.utcnow()
+            demo["demo_paused_elapsed_seconds"] = float(DEMO_TOTAL_SECONDS)
+        return min(elapsed, DEMO_TOTAL_SECONDS)
+
+    return min(float(demo["demo_paused_elapsed_seconds"]), DEMO_TOTAL_SECONDS)
+
+
+def _unique(items: list[str]) -> list[str]:
+    seen = set()
+    unique_items: list[str] = []
+
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        unique_items.append(item)
+
+    return unique_items
+
+
+def _demo_snapshot() -> dict:
+    demo = state["demo"]
+    elapsed = _demo_elapsed_seconds()
+    completed_steps = min(int(elapsed // DEMO_STEP_SECONDS), DEMO_TOTAL_STEPS)
+    finished = completed_steps >= DEMO_TOTAL_STEPS
+    active_step = min(completed_steps, DEMO_TOTAL_STEPS - 1)
+    current_node_index = min(completed_steps, len(DEMO_ROUTE_NODES) - 1)
+
+    completed_segment_ids = _unique(DEMO_ROUTE_SEGMENTS[:completed_steps])
+    active_segment_ids = [] if finished else [DEMO_ROUTE_SEGMENTS[active_step]]
+
+    read_qr_ids = [
+        qr_id
+        for step, qr_id, _station_id in QR_EVENTS_BY_STEP
+        if completed_steps >= step
+    ]
+    expected_qr_id = next(
+        (
+            qr_id
+            for step, qr_id, _station_id in QR_EVENTS_BY_STEP
+            if completed_steps < step
+        ),
+        None,
+    )
+    last_read_qr_id = read_qr_ids[-1] if read_qr_ids else None
+
+    phase, description = _demo_task_phase(completed_steps, finished)
+
+    if completed_steps < 6:
+        gate_status = "IDLE"
+    elif completed_steps == 6:
+        gate_status = "WAITING_PERMISSION"
+    elif completed_steps == 7:
+        gate_status = "PERMISSION_GRANTED"
+    elif completed_steps == 8:
+        gate_status = "PASSING"
+    else:
+        gate_status = "PASSED"
+
+    progress_percent = round((completed_steps / DEMO_TOTAL_STEPS) * 100, 1)
+    remaining_seconds = None if finished else max(0, int(DEMO_TOTAL_SECONDS - elapsed))
+
+    qr_events = _demo_qr_events(completed_steps)
+    plc_messages = _demo_plc_messages(completed_steps)
+
+    demo["demo_step_index"] = completed_steps
+
+    return {
+        "running": demo["demo_running"],
+        "demo_running": demo["demo_running"],
+        "demo_has_state": demo["demo_has_state"],
+        "demo_step_index": completed_steps,
+        "demo_route_nodes": DEMO_ROUTE_NODES.copy(),
+        "current_node_id": DEMO_ROUTE_NODES[current_node_index],
+        "completed_segment_ids": completed_segment_ids,
+        "active_segment_ids": active_segment_ids,
+        "read_qr_ids": read_qr_ids,
+        "expected_qr_id": expected_qr_id,
+        "last_read_qr_id": last_read_qr_id,
+        "task_progress_percent": progress_percent,
+        "task_phase": phase,
+        "task_description": description,
+        "elapsed_seconds": int(elapsed),
+        "remaining_seconds": remaining_seconds,
+        "gate_status": gate_status,
+        "plc_messages": plc_messages,
+        "qr_events": qr_events,
+    }
+
+
+def _demo_task_phase(completed_steps: int, finished: bool) -> tuple[str, str]:
+    if finished:
+        return "COMPLETED", "DEMO SİMÜLASYON MODU: Görev tamamlandı."
+
+    if completed_steps <= 1:
+        return "TASK_RECEIVED", "DEMO SİMÜLASYON MODU: Görev alındı."
+
+    if completed_steps <= 3:
+        return "GOING_TO_PICKUP", "DEMO SİMÜLASYON MODU: Robot yüksüz olarak A2 noktasına ilerliyor."
+
+    if completed_steps == 4:
+        return "LOAD_PICKED", "DEMO SİMÜLASYON MODU: Yük alındı, rota B3 noktasına döndü."
+
+    if completed_steps <= 6:
+        return "WAITING_FACTORY_COMMAND", "DEMO SİMÜLASYON MODU: Kapı geçiş izni bekleniyor."
+
+    if completed_steps <= 8:
+        return "PASSING_GATE", "DEMO SİMÜLASYON MODU: Kapı geçişi yapılıyor."
+
+    return "GOING_TO_DROPOFF", "DEMO SİMÜLASYON MODU: Robot yüklü olarak B3 noktasına ilerliyor."
+
+
+def _event_timestamp(base_time: datetime | None, step: int) -> str:
+    if base_time is None:
+        base_time = datetime.utcnow()
+
+    return (base_time + timedelta(seconds=step * DEMO_STEP_SECONDS)).isoformat()
+
+
+def _demo_qr_events(completed_steps: int) -> list[dict]:
+    start_time = state["demo"]["demo_start_time"]
+
+    return [
+        {
+            "qr_id": qr_id,
+            "raw_data": f"DEMO_QR_{qr_id.upper()}",
+            "station_id": station_id,
+            "timestamp": _event_timestamp(start_time, step),
+        }
+        for step, qr_id, station_id in QR_EVENTS_BY_STEP
+        if completed_steps >= step
+    ]
+
+
+def _demo_plc_messages(completed_steps: int) -> list[dict]:
+    start_time = state["demo"]["demo_start_time"]
+
+    return [
+        {
+            "id": msg_id,
+            "direction": direction,
+            "message_type": message_type,
+            "title": f"DEMO SİMÜLASYON MODU - {title}",
+            "timestamp": _event_timestamp(start_time, step),
+            "success": True,
+            "payload": payload,
+        }
+        for step, msg_id, direction, message_type, title, payload in PLC_MESSAGES_BY_STEP
+        if completed_steps >= step
+    ]
+
+
+def _reset_demo_state(running: bool = False, visible: bool = False):
+    state["demo"] = _initial_demo_state()
+    state["demo"]["demo_running"] = running
+    state["demo"]["demo_has_state"] = visible or running
+    if running:
+        state["demo"]["demo_start_time"] = datetime.utcnow()
+        state["demo"]["demo_paused_at"] = None
 
 @app.get("/health")
 async def health():
@@ -21,17 +236,29 @@ async def health():
 
 @app.get("/state")
 async def get_state():
+    demo = _demo_snapshot()
     mode = "IDLE"
     if state["emergency_stop"]:
         mode = "EMERGENCY_STOP"
     elif state["manual_enabled"]:
         mode = "IDLE" # Following FakeRobotBackend behavior
+    elif demo["running"]:
+        if demo["task_phase"] == "TASK_RECEIVED":
+            mode = "TASK_RECEIVED_PROCESSING"
+        elif demo["task_phase"] in {"GOING_TO_PICKUP"}:
+            mode = "MOVING_UNLOADED"
+        elif demo["task_phase"] in {"WAITING_FACTORY_COMMAND", "PASSING_GATE"}:
+            mode = "WAITING_FACTORY_COMMAND"
+        elif demo["task_phase"] == "COMPLETED":
+            mode = "TASK_COMPLETED_RETURNING"
+        else:
+            mode = "MOVING_LOADED"
     
     return {
         "mode": mode,
         "battery_percent": state["battery"],
-        "speed_mps": state["speed"],
-        "load_detected": False,
+        "speed_mps": 0.28 if demo["running"] and not state["emergency_stop"] else state["speed"],
+        "load_detected": demo["demo_step_index"] >= 4 and demo["task_phase"] != "COMPLETED",
         "emergency_stop": state["emergency_stop"],
         "connection_ok": True,
         "timestamp": datetime.utcnow().isoformat()
@@ -39,6 +266,23 @@ async def get_state():
 
 @app.get("/task/status")
 async def get_task_status():
+    demo = _demo_snapshot()
+    if demo["running"] or state["demo"]["demo_has_state"]:
+        return {
+            "task_id": "DEMO-A2-B3",
+            "phase": demo["task_phase"],
+            "pickup_point_id": "A2",
+            "dropoff_point_id": "B3",
+            "active_route_id": "DEMO_ROUTE_A2_B3",
+            "expected_qr_id": demo["expected_qr_id"],
+            "last_read_qr_id": demo["last_read_qr_id"],
+            "progress_percent": demo["task_progress_percent"],
+            "elapsed_seconds": demo["elapsed_seconds"],
+            "remaining_seconds": demo["remaining_seconds"],
+            "description": demo["task_description"],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
     if state["emergency_stop"]:
         return {
             "task_id": "TASK-101",
@@ -87,6 +331,20 @@ async def set_active_route(route: dict = Body(...)):
 
 @app.get("/map/runtime")
 async def get_map_runtime():
+    demo = _demo_snapshot()
+    if demo["running"] or state["demo"]["demo_has_state"]:
+        return {
+            "active_segment_ids": demo["active_segment_ids"],
+            "completed_segment_ids": demo["completed_segment_ids"],
+            "pickup_point_id": "A2",
+            "dropoff_point_id": "B3",
+            "expected_qr_id": demo["expected_qr_id"],
+            "last_read_qr_id": demo["last_read_qr_id"],
+            "read_qr_ids": demo["read_qr_ids"],
+            "current_node_id": demo["current_node_id"],
+            "gate_status": demo["gate_status"]
+        }
+
     return {
         "active_segment_ids": ["START_D1", "D1_D2", "D2_D3"],
         "completed_segment_ids": ["START_D1", "D1_D2"],
@@ -101,6 +359,10 @@ async def get_map_runtime():
 
 @app.get("/qr/events")
 async def get_qr_events(limit: int = 10):
+    demo = _demo_snapshot()
+    if demo["running"] or state["demo"]["demo_has_state"]:
+        return demo["qr_events"][-limit:]
+
     return [
         {"qr_id": f"q{i}", "raw_data": f"MOCK_QR_{i}", "station_id": "A2", "timestamp": datetime.utcnow().isoformat()}
         for i in range(min(limit, 3))
@@ -124,6 +386,10 @@ async def get_plc_status():
 
 @app.get("/plc/messages")
 async def get_plc_messages(limit: int = 20):
+    demo = _demo_snapshot()
+    if demo["running"] or state["demo"]["demo_has_state"]:
+        return demo["plc_messages"][-limit:]
+
     if state["emergency_stop"]:
         return [
             {
@@ -165,6 +431,33 @@ async def get_plc_messages(limit: int = 20):
             "payload": '{"error_code": "COMM_TIMEOUT"}'
         }
     ][:limit]
+
+
+@app.post("/demo/start")
+async def demo_start():
+    _reset_demo_state(running=True, visible=True)
+    return {"success": True, "status": _demo_snapshot()}
+
+
+@app.post("/demo/stop")
+async def demo_stop():
+    demo = state["demo"]
+    demo["demo_paused_elapsed_seconds"] = _demo_elapsed_seconds()
+    demo["demo_running"] = False
+    demo["demo_start_time"] = None
+    demo["demo_paused_at"] = datetime.utcnow()
+    return {"success": True, "status": _demo_snapshot()}
+
+
+@app.post("/demo/reset")
+async def demo_reset():
+    _reset_demo_state(running=False, visible=True)
+    return {"success": True, "status": _demo_snapshot()}
+
+
+@app.get("/demo/status")
+async def demo_status():
+    return _demo_snapshot()
 
 
 

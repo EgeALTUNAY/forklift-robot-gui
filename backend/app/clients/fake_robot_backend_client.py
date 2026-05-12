@@ -17,6 +17,7 @@ from app.schemas.manual_status import (
 )
 from app.schemas.camera import CameraStatus
 from app.schemas.route import DefinedRoute
+from app.schemas.demo import DemoCommandResponse, DemoStatus
 
 class FakeRobotBackendClient(RobotBackendClientInterface):
     def __init__(self):
@@ -24,6 +25,14 @@ class FakeRobotBackendClient(RobotBackendClientInterface):
         self.emergency = False
         self.last_command = None
         self.active_route: DefinedRoute | None = None
+        self.demo_status = DemoStatus(
+            running=False,
+            demo_running=False,
+            demo_route_nodes=["START", "D1", "D2", "A2", "D2", "D3", "GATE", "D4", "D6", "B3"],
+            current_node_id="START",
+            task_phase="NO_TASK",
+            task_description="Fake GUI backend mode: demo simülasyonu mock robot backend üzerinde çalışır.",
+        )
 
 
     async def get_manual_control_status(self) -> ManualControlStatus:
@@ -357,6 +366,33 @@ class FakeRobotBackendClient(RobotBackendClientInterface):
     async def set_active_route(self, route: DefinedRoute) -> bool:
         self.active_route = route
         return True
+
+    async def start_demo(self) -> DemoCommandResponse:
+        self.demo_status.running = False
+        self.demo_status.demo_running = False
+        self.demo_status.demo_step_index = 0
+        return DemoCommandResponse(
+            success=True,
+            status=self.demo_status,
+            message="Fake mode demo komutu kabul edildi. Canlı simülasyon için mock robot backend kullanılır.",
+        )
+
+    async def stop_demo(self) -> DemoCommandResponse:
+        return DemoCommandResponse(success=True, status=self.demo_status)
+
+    async def reset_demo(self) -> DemoCommandResponse:
+        self.demo_status = DemoStatus(
+            running=False,
+            demo_running=False,
+            demo_route_nodes=["START", "D1", "D2", "A2", "D2", "D3", "GATE", "D4", "D6", "B3"],
+            current_node_id="START",
+            task_phase="NO_TASK",
+            task_description="Fake GUI backend mode: demo simülasyonu mock robot backend üzerinde çalışır.",
+        )
+        return DemoCommandResponse(success=True, status=self.demo_status)
+
+    async def get_demo_status(self) -> DemoStatus:
+        return self.demo_status
 
     async def ping(self) -> bool:
         return True

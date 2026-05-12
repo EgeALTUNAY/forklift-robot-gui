@@ -52,17 +52,23 @@ function App() {
           </span>
         </div>
 
-        <div
-          className={`connection ${snapshot ? 'connected' : connectionState}`}
-          role="status"
-          aria-live="polite"
-        >
-          <span className="connection-dot" />
-          <div className="connection-text">
-            <span>{snapshot ? 'GUI Backend Bağlı' : getConnectionText(connectionState)}</span>
-            {snapshot && connectionState === "reconnecting" && (
-              <span className="connection-subtext">WS yeniden bağlanıyor...</span>
-            )}
+        <div className="topbar-right">
+          {snapshot?.demo_status?.running && (
+            <span className="demo-running-badge">Demo simülasyon çalışıyor</span>
+          )}
+
+          <div
+            className={`connection ${snapshot ? 'connected' : connectionState}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="connection-dot" />
+            <div className="connection-text">
+              <span>{snapshot ? 'GUI Backend Bağlı' : getConnectionText(connectionState)}</span>
+              {snapshot && connectionState === "reconnecting" && (
+                <span className="connection-subtext">WS yeniden bağlanıyor...</span>
+              )}
+            </div>
           </div>
         </div>
       </nav>

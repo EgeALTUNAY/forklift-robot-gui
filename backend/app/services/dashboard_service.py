@@ -18,6 +18,12 @@ class DashboardService:
             manual_control_status = await self.robot_client.get_manual_control_status()
             plc_messages = await self.robot_client.get_plc_messages(limit=20)
             camera_status = await self.robot_client.get_camera_status()
+            demo_status = None
+
+            try:
+                demo_status = await self.robot_client.get_demo_status()
+            except Exception:
+                demo_status = None
             
             # Overwrite the stream_url with the GUI backend proxy URL
             # The frontend should only ever talk to the GUI backend (8000)
@@ -34,6 +40,7 @@ class DashboardService:
                 "task_status": task_status.model_dump(mode="json"),
                 "manual_control_status": manual_control_status.model_dump(mode="json"),
                 "camera_status": camera_status.model_dump(mode="json"),
+                "demo_status": demo_status.model_dump(mode="json") if demo_status else None,
                 "error": None,
             }
 
@@ -96,6 +103,7 @@ class DashboardService:
                     "latency_ms": None,
                     "message": "Bağlantı hatası.",
                 },
+                "demo_status": None,
                 "alerts": [
 
                     {
@@ -110,4 +118,4 @@ class DashboardService:
                 
                 ],
                 "error": str(exc),
-}           
+            }

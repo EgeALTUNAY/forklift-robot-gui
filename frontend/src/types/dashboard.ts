@@ -88,6 +88,7 @@ export interface DashboardSnapshot {
   task_status: TaskStatus;
   manual_control_status: ManualControlStatus;
   camera_status: CameraStatus;
+  demo_status?: DemoStatus | null;
   ok: boolean;
   error: string | null;
 }
@@ -182,4 +183,29 @@ export interface CameraStatus {
   connected: boolean;
   latency_ms: number | null;
   message: string | null;
+}
+
+export interface DemoStatus {
+  running: boolean;
+  demo_running?: boolean;
+  demo_step_index: number;
+  demo_route_nodes: string[];
+  current_node_id: string | null;
+  completed_segment_ids: string[];
+  active_segment_ids: string[];
+  read_qr_ids: string[];
+  expected_qr_id: string | null;
+  last_read_qr_id: string | null;
+  task_progress_percent: number;
+  task_phase: string | null;
+  task_description: string | null;
+  elapsed_seconds: number;
+  remaining_seconds: number | null;
+  gate_status: string | null;
+}
+
+export interface DemoCommandResponse {
+  success: boolean;
+  status: DemoStatus | null;
+  message?: string | null;
 }

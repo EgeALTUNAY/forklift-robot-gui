@@ -13,6 +13,7 @@ from app.schemas.task import TaskStatus
 from app.schemas.manual_status import ManualControlStatus
 from app.schemas.camera import CameraStatus
 from app.schemas.route import DefinedRoute
+from app.schemas.demo import DemoCommandResponse, DemoStatus
 
 
 class RealRobotBackendClient(RobotBackendClientInterface):
@@ -24,6 +25,7 @@ class RealRobotBackendClient(RobotBackendClientInterface):
             base_url=self.base_url,
             timeout=self.timeout
         )
+        self.demo_supported: bool | None = None
 
     async def _get(self, endpoint: str, params: Optional[dict] = None):
         """Helper for GET requests with logging and error handling."""
@@ -36,6 +38,32 @@ class RealRobotBackendClient(RobotBackendClientInterface):
         response = await self.client.post(endpoint, json=json_data)
         response.raise_for_status()
         return response.json()
+
+    async def _demo_get(self, endpoint: str):
+        try:
+            data = await self._get(endpoint)
+            self.demo_supported = True
+            return data
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (404, 405):
+                self.demo_supported = False
+                raise NotImplementedError(
+                    "Robot backend demo endpoints are not supported."
+                ) from exc
+            raise
+
+    async def _demo_post(self, endpoint: str):
+        try:
+            data = await self._post(endpoint)
+            self.demo_supported = True
+            return data
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (404, 405):
+                self.demo_supported = False
+                raise NotImplementedError(
+                    "Robot backend demo endpoints are not supported."
+                ) from exc
+            raise
 
     async def get_robot_state(self) -> RobotState:
         data = await self._get("/state")
@@ -104,6 +132,22 @@ class RealRobotBackendClient(RobotBackendClientInterface):
             json_data=route.model_dump(mode="json"),
         )
         return data.get("success", True)
+
+    async def start_demo(self) -> DemoCommandResponse:
+        data = await self._demo_post("/demo/start")
+        return DemoCommandResponse(**data)
+
+    async def stop_demo(self) -> DemoCommandResponse:
+        data = await self._demo_post("/demo/stop")
+        return DemoCommandResponse(**data)
+
+    async def reset_demo(self) -> DemoCommandResponse:
+        data = await self._demo_post("/demo/reset")
+        return DemoCommandResponse(**data)
+
+    async def get_demo_status(self) -> DemoStatus:
+        data = await self._demo_get("/demo/status")
+        return DemoStatus(**data)
 
     # For health check
     async def ping(self) -> bool:
