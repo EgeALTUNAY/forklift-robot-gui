@@ -40,8 +40,8 @@ export class ManualControlSocket {
     };
   }
 
-  send(command: Omit<ManualCommandFrame, "seq">) {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+  send(command: Omit<ManualCommandFrame, "seq">): ManualCommandFrame | null {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return null;
 
     const frame: ManualCommandFrame = {
       ...command,
@@ -49,6 +49,7 @@ export class ManualControlSocket {
     };
 
     this.socket.send(JSON.stringify(frame));
+    return frame;
   }
 
   onAck(callback: (ack: ManualCommandAck) => void) {

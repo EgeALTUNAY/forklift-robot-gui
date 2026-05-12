@@ -16,11 +16,16 @@ interface Props {
 
 const WS_URL = import.meta.env.VITE_GUI_BACKEND_MANUAL_WS_URL || "ws://localhost:8000/ws/manual-control";
 
+const formatControlValue = (value: number) => value.toFixed(2);
+
 export function ManualControlPanel({ status }: Props) {
   const [lastCommand, setLastCommand] = useState<string>("Henüz komut yok");
   const [lastAck, setLastAck] = useState<ManualCommandAck | null>(null);
+  const [lastSentSeq, setLastSentSeq] = useState<number | null>(null);
   const gamepad = useGamepadController();
   const socketRef = useRef<ManualControlSocket | null>(null);
+  const latestGamepadRef = useRef(gamepad);
+  const latestStatusRef = useRef(status);
 
   // Initialize Socket
   useEffect(() => {
@@ -34,6 +39,14 @@ export function ManualControlPanel({ status }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    latestGamepadRef.current = gamepad;
+  }, [gamepad]);
+
+  useEffect(() => {
+    latestStatusRef.current = status;
+  }, [status]);
+
   // Stream Gamepad Commands
   const wasStreaming = useRef(false);
 
@@ -41,40 +54,45 @@ export function ManualControlPanel({ status }: Props) {
     if (!socketRef.current) return;
 
     const interval = setInterval(() => {
+      const currentStatus = latestStatusRef.current;
+      const currentGamepad = latestGamepadRef.current;
+
       // Conditions for streaming
-      const isEStop = status.remote_control_state === "DISABLED"; // or check robot state
+      const isEStop = currentStatus.remote_control_state === "DISABLED"; // or check robot state
       
       const canStream = 
-        status.physical_switch_position === "MANUAL" &&
-        status.remote_control_enabled &&
-        status.remote_control_state === "ACTIVE" &&
-        gamepad.connected &&
+        currentStatus.physical_switch_position === "MANUAL" &&
+        currentStatus.remote_control_enabled &&
+        currentStatus.remote_control_state === "ACTIVE" &&
+        currentGamepad.connected &&
         !isEStop;
 
       if (canStream) {
-        socketRef.current?.send({
+        const frame = socketRef.current?.send({
           source: "GAMEPAD",
-          deadman_pressed: gamepad.deadmanPressed,
-          vx: gamepad.vx,
-          omega: gamepad.omega,
-          lift: gamepad.lift,
+          deadman_pressed: currentGamepad.deadmanPressed,
+          vx: currentGamepad.vx,
+          omega: currentGamepad.omega,
+          lift: currentGamepad.lift,
         });
+        if (frame) setLastSentSeq(frame.seq);
         wasStreaming.current = true;
       } else if (wasStreaming.current) {
         // Just stopped streaming: send one last zero command for safety
-        socketRef.current?.send({
+        const frame = socketRef.current?.send({
           source: "GAMEPAD",
           deadman_pressed: false,
           vx: 0,
           omega: 0,
           lift: 0,
         });
+        if (frame) setLastSentSeq(frame.seq);
         wasStreaming.current = false;
       }
     }, 100); // 10Hz streaming
 
     return () => clearInterval(interval);
-  }, [status, gamepad]);
+  }, []);
 
   const handleEnableManual = async () => {
     const success = await enableManualMode();
@@ -170,36 +188,73 @@ export function ManualControlPanel({ status }: Props) {
             </strong>
           </div>
 
-          <div className="gamepad-status">
-            Gamepad:{" "}
-            <strong className={gamepad.connected ? "text-ok" : "text-muted"}>
-              {gamepad.connected ? "BAĞLI" : "BAĞLI DEĞİL"}
-            </strong>
-            {gamepad.connected && (
-              <span className={`deadman-tag ${gamepad.deadmanPressed ? 'active' : ''}`}>
-                {gamepad.deadmanPressed ? 'DEADMAN BASILI' : 'DEADMAN BIRAKILDI'}
-              </span>
+          <div className="ps-debug-panel">
+            <div className="ps-debug-header">
+              <h3>PS Controller Debug</h3>
+              <strong className={gamepad.connected ? "text-ok" : "text-muted"}>
+                {gamepad.connected ? "BAĞLI" : "BAĞLI DEĞİL"}
+              </strong>
+            </div>
+
+            {!gamepad.connected ? (
+              <p className="ps-debug-empty">PS kolu bağlı değil. Bağladıktan sonra bir tuşa basın.</p>
+            ) : (
+              <>
+                <div className="ps-controller-id" title={gamepad.debug.id ?? ""}>
+                  {gamepad.debug.id}
+                </div>
+
+                <div className="ps-debug-row">
+                  <span>Deadman</span>
+                  <div className="ps-chip-row">
+                    <span className={`ps-chip ${gamepad.debug.buttons.l1Pressed ? "active" : ""}`}>
+                      L1 {gamepad.debug.buttons.l1Pressed ? "basılı" : "boşta"}
+                    </span>
+                    <span className={`ps-chip ${gamepad.debug.buttons.crossPressed ? "active" : ""}`}>
+                      X/Cross {gamepad.debug.buttons.crossPressed ? "basılı" : "boşta"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="ps-debug-row">
+                  <span>Safety stop</span>
+                  <span className={`ps-chip danger ${gamepad.debug.buttons.circlePressed ? "active" : ""}`}>
+                    O/Circle {gamepad.debug.buttons.circlePressed ? "basılı" : "boşta"}
+                  </span>
+                </div>
+
+                <div className="ps-value-grid">
+                  <span>Sol analog X</span>
+                  <strong>{formatControlValue(gamepad.debug.axes.leftStickX)}</strong>
+                  <span>Sol analog Y</span>
+                  <strong>{formatControlValue(gamepad.debug.axes.leftStickY)}</strong>
+                  <span>Sağ analog X</span>
+                  <strong>{formatControlValue(gamepad.debug.axes.rightStickX)}</strong>
+                  <span>Sağ analog Y</span>
+                  <strong>{formatControlValue(gamepad.debug.axes.rightStickY)}</strong>
+                </div>
+
+                <div className="ps-processed-grid">
+                  <div>vx <strong>{formatControlValue(gamepad.vx)}</strong></div>
+                  <div>omega <strong>{formatControlValue(gamepad.omega)}</strong></div>
+                  <div>lift <strong>{formatControlValue(gamepad.lift)}</strong></div>
+                </div>
+              </>
             )}
+
+            <div className="ps-meta-grid">
+              <span>Deadzone</span>
+              <strong>{formatControlValue(gamepad.debug.deadzone)}</strong>
+              <span>Son frame seq</span>
+              <strong>{lastSentSeq ?? "Yok"}</strong>
+              <span>Son ACK</span>
+              <strong className={lastAck ? (lastAck.accepted ? "text-ok" : "text-danger") : "text-muted"}>
+                {lastAck ? (lastAck.accepted ? "accepted" : "rejected") : "Yok"}
+              </strong>
+              <span>Reason</span>
+              <strong>{lastAck?.reason ?? "-"}</strong>
+            </div>
           </div>
-
-          {gamepad.connected && (
-            <div className="live-values">
-              <div>VX: <strong>{gamepad.vx.toFixed(2)}</strong></div>
-              <div>Ω: <strong>{gamepad.omega.toFixed(2)}</strong></div>
-              <div>Lift: <strong>{gamepad.lift.toFixed(2)}</strong></div>
-            </div>
-          )}
-
-          {lastAck && (
-            <div className={`ack-status ${lastAck.accepted ? 'ok' : 'error'}`}>
-              <div className="ack-main">
-                {lastAck.accepted ? '✓ Komut Kabul Edildi' : `✗ Reddedildi: ${lastAck.reason}`}
-              </div>
-              <div className="ack-meta">
-                Seq: {lastAck.seq} | {new Date(lastAck.timestamp).toLocaleTimeString()}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="visual-controls">
@@ -282,45 +337,101 @@ export function ManualControlPanel({ status }: Props) {
           flex-direction: column;
           gap: 1rem;
         }
-        .gamepad-status {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-        .deadman-tag {
-          font-size: 0.65rem;
-          padding: 2px 6px;
-          border-radius: 4px;
-          background: #374151;
-          color: #9ca3af;
-        }
-        .deadman-tag.active {
-          background: #ef4444;
-          color: white;
-          animation: blink 1s infinite;
-        }
-        @keyframes blink {
-          50% { opacity: 0.7; }
-        }
-        .live-values {
+        .ps-debug-panel {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 0.5rem;
-          background: rgba(0,0,0,0.2);
-          padding: 0.75rem;
+          gap: 0.6rem;
+          background: rgba(15, 23, 42, 0.04);
+          border: 1px solid var(--border-mid);
           border-radius: 8px;
-          font-family: monospace;
-          font-size: 0.8rem;
+          padding: 0.85rem;
         }
-        .ack-status {
+        .ps-debug-header,
+        .ps-debug-row,
+        .ps-meta-grid,
+        .ps-value-grid {
+          display: grid;
+          gap: 0.35rem 0.6rem;
+        }
+        .ps-debug-header {
+          grid-template-columns: 1fr auto;
+          align-items: center;
+        }
+        .ps-debug-header h3 {
+          margin: 0;
+          font-size: 0.9rem;
+        }
+        .ps-debug-empty,
+        .ps-controller-id {
+          margin: 0;
           font-size: 0.75rem;
-          padding: 0.5rem;
-          border-radius: 4px;
+          color: var(--text-4);
+          line-height: 1.35;
         }
-        .ack-status.ok { color: #10b981; border-left: 3px solid #10b981; }
-        .ack-status.error { color: #ef4444; border-left: 3px solid #ef4444; }
-        .ack-main { font-weight: 600; margin-bottom: 2px; }
-        .ack-meta { font-size: 0.65rem; opacity: 0.8; }
+        .ps-controller-id {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .ps-debug-row {
+          grid-template-columns: 96px 1fr;
+          align-items: center;
+          font-size: 0.75rem;
+          color: var(--text-3);
+        }
+        .ps-chip-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.35rem;
+        }
+        .ps-chip {
+          display: inline-flex;
+          align-items: center;
+          width: fit-content;
+          border-radius: 4px;
+          padding: 2px 6px;
+          background: var(--surface);
+          border: 1px solid var(--border-mid);
+          color: var(--text-4);
+          font-size: 0.68rem;
+          font-weight: 600;
+        }
+        .ps-chip.active {
+          background: var(--green-bg);
+          border-color: #ABEFC6;
+          color: var(--green-text);
+        }
+        .ps-chip.danger.active {
+          background: var(--red-bg);
+          border-color: #FECDCA;
+          color: var(--red-text);
+        }
+        .ps-value-grid,
+        .ps-meta-grid {
+          grid-template-columns: minmax(92px, 1fr) auto minmax(92px, 1fr) auto;
+          align-items: center;
+          font-family: monospace;
+          font-size: 0.74rem;
+        }
+        .ps-value-grid span,
+        .ps-meta-grid span {
+          color: var(--text-4);
+        }
+        .ps-processed-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 0.35rem;
+          font-family: monospace;
+          font-size: 0.76rem;
+        }
+        .ps-processed-grid div {
+          display: flex;
+          justify-content: space-between;
+          gap: 0.35rem;
+          background: var(--surface);
+          border: 1px solid var(--border-mid);
+          border-radius: 4px;
+          padding: 0.35rem 0.45rem;
+        }
         
         .visual-controls {
           display: flex;
@@ -330,6 +441,8 @@ export function ManualControlPanel({ status }: Props) {
 
         @media (max-width: 800px) {
           .manual-grid { grid-template-columns: 1fr; }
+          .ps-value-grid,
+          .ps-meta-grid { grid-template-columns: minmax(110px, 1fr) auto; }
         }
       `}</style>
     </div>
