@@ -15,17 +15,27 @@ interface Props {
 }
 
 const WS_URL = import.meta.env.VITE_GUI_BACKEND_MANUAL_WS_URL || "ws://localhost:8000/ws/manual-control";
+const ACTIVE_SESSION_REASON = "Başka bir manuel kontrol oturumu zaten aktif.";
 
 const formatControlValue = (value: number) => value.toFixed(2);
+const formatAckReason = (reason: string | null) => {
+  if (reason === ACTIVE_SESSION_REASON) {
+    return "Başka bir manuel kontrol oturumu açık. Diğer sekmeleri kapatıp tekrar deneyin.";
+  }
+
+  return reason ?? "-";
+};
 
 export function ManualControlPanel({ status }: Props) {
   const [lastCommand, setLastCommand] = useState<string>("Henüz komut yok");
   const [lastAck, setLastAck] = useState<ManualCommandAck | null>(null);
   const [lastSentSeq, setLastSentSeq] = useState<number | null>(null);
+  const [manualWsConnected, setManualWsConnected] = useState(false);
   const gamepad = useGamepadController();
   const socketRef = useRef<ManualControlSocket | null>(null);
   const latestGamepadRef = useRef(gamepad);
   const latestStatusRef = useRef(status);
+  const ackReason = formatAckReason(lastAck?.reason ?? null);
 
   // Initialize Socket
   useEffect(() => {
@@ -33,8 +43,12 @@ export function ManualControlPanel({ status }: Props) {
     socket.connect();
     socket.onAck((ack) => setLastAck(ack));
     socketRef.current = socket;
+    const connectionCheck = setInterval(() => {
+      setManualWsConnected(socket.isConnected());
+    }, 500);
 
     return () => {
+      clearInterval(connectionCheck);
       socket.disconnect();
     };
   }, []);
@@ -152,8 +166,8 @@ export function ManualControlPanel({ status }: Props) {
       <div className="manual-header">
         <div className="title-row">
           <h2>Manuel Kontrol & Gamepad</h2>
-          <div className={`connection-status ${socketRef.current?.isConnected() ? 'connected' : 'disconnected'}`}>
-            {socketRef.current?.isConnected() ? 'WS Bağlı' : 'WS Bağlantı Yok'}
+          <div className={`connection-status ${manualWsConnected ? 'connected' : 'disconnected'}`}>
+            {manualWsConnected ? 'WS Bağlı' : 'WS Bağlantı Yok'}
           </div>
         </div>
         <div className="test-notice">
@@ -247,12 +261,19 @@ export function ManualControlPanel({ status }: Props) {
               <strong>{formatControlValue(gamepad.debug.deadzone)}</strong>
               <span>Son frame seq</span>
               <strong>{lastSentSeq ?? "Yok"}</strong>
-              <span>Son ACK</span>
-              <strong className={lastAck ? (lastAck.accepted ? "text-ok" : "text-danger") : "text-muted"}>
+            </div>
+
+            <div className={`ps-ack-panel ${lastAck && !lastAck.accepted ? "rejected" : ""}`}>
+              <div className="ps-ack-row">
+                <span>Son ACK</span>
+                <strong className={lastAck ? (lastAck.accepted ? "text-ok" : "text-danger") : "text-muted"}>
                 {lastAck ? (lastAck.accepted ? "accepted" : "rejected") : "Yok"}
-              </strong>
-              <span>Reason</span>
-              <strong>{lastAck?.reason ?? "-"}</strong>
+                </strong>
+              </div>
+              <div className="ps-ack-reason">
+                <span>Reason</span>
+                <strong>{ackReason}</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -328,14 +349,16 @@ export function ManualControlPanel({ status }: Props) {
 
         .manual-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 2rem;
+          grid-template-columns: minmax(380px, 1.25fr) minmax(260px, 0.75fr);
+          gap: 1.5rem;
           margin: 1.5rem 0;
+          align-items: start;
         }
         .status-section {
           display: flex;
           flex-direction: column;
           gap: 1rem;
+          min-width: 0;
         }
         .ps-debug-panel {
           display: grid;
@@ -432,15 +455,53 @@ export function ManualControlPanel({ status }: Props) {
           border-radius: 4px;
           padding: 0.35rem 0.45rem;
         }
+        .ps-ack-panel {
+          display: grid;
+          gap: 0.35rem;
+          background: var(--surface);
+          border: 1px solid var(--border-mid);
+          border-radius: 6px;
+          padding: 0.55rem 0.65rem;
+          font-size: 0.76rem;
+        }
+        .ps-ack-panel.rejected {
+          background: var(--red-bg);
+          border-color: #FECDCA;
+        }
+        .ps-ack-row,
+        .ps-ack-reason {
+          display: grid;
+          grid-template-columns: 74px 1fr;
+          gap: 0.6rem;
+          align-items: start;
+        }
+        .ps-ack-row span,
+        .ps-ack-reason span {
+          color: var(--text-4);
+          font-family: monospace;
+        }
+        .ps-ack-reason strong {
+          white-space: normal;
+          word-break: normal;
+          overflow-wrap: normal;
+          line-height: 1.45;
+          min-width: 0;
+        }
         
         .visual-controls {
           display: flex;
           justify-content: center;
           align-items: center;
+          min-width: 0;
+          padding: 0.5rem 0;
+        }
+
+        @media (max-width: 1100px) {
+          .manual-grid { grid-template-columns: 1fr; }
+          .visual-controls { padding-top: 0; }
         }
 
         @media (max-width: 800px) {
-          .manual-grid { grid-template-columns: 1fr; }
           .ps-value-grid,
           .ps-meta-grid { grid-template-columns: minmax(110px, 1fr) auto; }
         }
