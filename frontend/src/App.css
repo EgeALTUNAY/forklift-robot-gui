@@ -618,6 +618,16 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
+.robot-path-trail {
+  fill: none;
+  stroke: #0f766e;
+  stroke-width: 4;
+  opacity: 0.56;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
 .map-segment.idle {
   stroke: rgba(100, 116, 139, 0.4);
   stroke-dasharray: 4 4;
@@ -741,9 +751,14 @@ body {
   color: white;
 }
 
-.robot-marker {
+.robot-marker-shell {
   position: absolute;
   transform: translate(-50%, -125%);
+  transition: left 260ms ease, top 260ms ease;
+  z-index: 10;
+}
+
+.robot-marker {
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -756,7 +771,7 @@ body {
   justify-content: center;
   font-size: 18px;
   font-weight: 900;
-  z-index: 10;
+  transition: transform 180ms ease;
 }
 
 .map-legend {

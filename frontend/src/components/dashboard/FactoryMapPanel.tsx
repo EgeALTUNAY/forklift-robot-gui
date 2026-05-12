@@ -24,6 +24,36 @@ function findPoint(pointId: string): MapPoint | undefined {
   return mapPoints.find((point) => point.id === pointId);
 }
 
+function getRobotPosition(runtime?: MapRuntimeStatus) {
+  if (runtime?.robot_position) {
+    return runtime.robot_position;
+  }
+
+  if (runtime?.current_node_id) {
+    return findPoint(runtime.current_node_id);
+  }
+
+  return undefined;
+}
+
+function getTrailPoints(runtime?: MapRuntimeStatus): string | null {
+  const trail = runtime?.robot_path_trail;
+
+  if (!trail || trail.length < 2) {
+    return null;
+  }
+
+  const safeTrail = trail.filter(
+    (point) => Number.isFinite(point.x) && Number.isFinite(point.y)
+  );
+
+  if (safeTrail.length < 2) {
+    return null;
+  }
+
+  return safeTrail.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
 function getSegmentClass(
   segment: RouteSegment,
   runtime?: MapRuntimeStatus
@@ -125,6 +155,8 @@ export function FactoryMapPanel({
   const pointMap = useMemo(() => {
     return new Map(mapPoints.map((point) => [point.id, point]));
   }, []);
+  const robotPosition = getRobotPosition(runtimeStatus);
+  const trailPoints = getTrailPoints(runtimeStatus);
 
   const handleMapClick = (event: MouseEvent<HTMLDivElement>) => {
     if (!debug) {
@@ -186,6 +218,15 @@ export function FactoryMapPanel({
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
         >
+          {trailPoints && (
+            <polyline
+              className="robot-path-trail"
+              points={trailPoints}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
           {routeSegments.map((segment, index) => {
             const from = pointMap.get(segment.from);
             const to = pointMap.get(segment.to);
@@ -250,9 +291,7 @@ export function FactoryMapPanel({
             );
           })}
 
-          {runtimeStatus?.current_node_id && (
-            <RobotMarker point={findPoint(runtimeStatus.current_node_id)} />
-          )}
+          {robotPosition && <RobotMarker position={robotPosition} />}
         </div>
       </div>
 
@@ -261,21 +300,32 @@ export function FactoryMapPanel({
   );
 }
 
-function RobotMarker({ point }: { point?: MapPoint }) {
-  if (!point) {
+function RobotMarker({
+  position,
+}: {
+  position?: { x: number; y: number; heading_deg?: number | null };
+}) {
+  if (!position) {
     return null;
   }
 
+  const markerRotation =
+    typeof position.heading_deg === "number" && Number.isFinite(position.heading_deg)
+      ? `rotate(${position.heading_deg + 90}deg)`
+      : undefined;
+
   return (
     <div
-      className="robot-marker"
+      className="robot-marker-shell"
       style={{
-        left: `${point.x}%`,
-        top: `${point.y}%`,
+        left: `${position.x}%`,
+        top: `${position.y}%`,
       }}
       title="Robot konumu"
     >
-      ▲
+      <div className="robot-marker" style={{ transform: markerRotation }}>
+        ▲
+      </div>
     </div>
   );
 }

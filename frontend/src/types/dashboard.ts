@@ -75,7 +75,22 @@ export interface MapRuntimeStatus {
   read_qr_ids: string[];
 
   current_node_id: string | null;
+  current_segment_id?: string | null;
+  segment_progress?: number | null;
+  robot_position?: MapRobotPosition | null;
+  robot_path_trail?: MapTrailPoint[] | null;
   gate_status: GateStatus;
+}
+
+export interface MapRobotPosition {
+  x: number;
+  y: number;
+  heading_deg?: number | null;
+}
+
+export interface MapTrailPoint {
+  x: number;
+  y: number;
 }
 
 export interface DashboardSnapshot {
@@ -191,6 +206,10 @@ export interface DemoStatus {
   demo_step_index: number;
   demo_route_nodes: string[];
   current_node_id: string | null;
+  current_segment_id?: string | null;
+  segment_progress?: number | null;
+  robot_position?: MapRobotPosition | null;
+  robot_path_trail?: MapTrailPoint[] | null;
   completed_segment_ids: string[];
   active_segment_ids: string[];
   read_qr_ids: string[];

@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Body
 
@@ -19,6 +20,21 @@ DEMO_QR_SEQUENCE = ["q1", "q3", "q5", "q6", "q7"]
 DEMO_STEP_SECONDS = 4
 DEMO_TOTAL_STEPS = len(DEMO_ROUTE_SEGMENTS)
 DEMO_TOTAL_SECONDS = DEMO_TOTAL_STEPS * DEMO_STEP_SECONDS
+DEMO_TRAIL_MAX_POINTS = 80
+DEMO_TRAIL_SAMPLE_SECONDS = 0.5
+DEMO_TRAIL_MIN_DISTANCE = 0.25
+
+DEMO_MAP_POINTS = {
+    "START": {"x": 11.5, "y": 81.5},
+    "A2": {"x": 21.4, "y": 12.85},
+    "B3": {"x": 70.18, "y": 86},
+    "D1": {"x": 11.5, "y": 57.5},
+    "D2": {"x": 21.5, "y": 57.5},
+    "D3": {"x": 31.09, "y": 57.5},
+    "D4": {"x": 70.18, "y": 57.37},
+    "D6": {"x": 70.18, "y": 63.27},
+    "GATE": {"x": 46.8, "y": 57.5},
+}
 
 QR_EVENTS_BY_STEP = [
     (1, "q1", "START_D1"),
@@ -90,6 +106,68 @@ def _unique(items: list[str]) -> list[str]:
     return unique_items
 
 
+def _interpolate_demo_position(elapsed: float) -> dict:
+    completed_steps = min(int(elapsed // DEMO_STEP_SECONDS), DEMO_TOTAL_STEPS)
+    finished = completed_steps >= DEMO_TOTAL_STEPS
+    active_step = min(completed_steps, DEMO_TOTAL_STEPS - 1)
+
+    if finished:
+        from_node_id = DEMO_ROUTE_NODES[-2]
+        to_node_id = DEMO_ROUTE_NODES[-1]
+        segment_progress = 1.0
+        current_segment_id = None
+    else:
+        from_node_id = DEMO_ROUTE_NODES[active_step]
+        to_node_id = DEMO_ROUTE_NODES[active_step + 1]
+        segment_elapsed = elapsed - (active_step * DEMO_STEP_SECONDS)
+        segment_progress = max(0.0, min(segment_elapsed / DEMO_STEP_SECONDS, 1.0))
+        current_segment_id = DEMO_ROUTE_SEGMENTS[active_step]
+
+    from_point = DEMO_MAP_POINTS[from_node_id]
+    to_point = DEMO_MAP_POINTS[to_node_id]
+    dx = to_point["x"] - from_point["x"]
+    dy = to_point["y"] - from_point["y"]
+
+    return {
+        "current_segment_id": current_segment_id,
+        "segment_progress": round(segment_progress, 3),
+        "robot_position": {
+            "x": round(from_point["x"] + (dx * segment_progress), 3),
+            "y": round(from_point["y"] + (dy * segment_progress), 3),
+            "heading_deg": round(math.degrees(math.atan2(dy, dx)), 1),
+        },
+    }
+
+
+def _append_trail_point(trail: list[dict], point: dict):
+    if trail:
+        last_point = trail[-1]
+        dx = point["x"] - last_point["x"]
+        dy = point["y"] - last_point["y"]
+        if (dx * dx) + (dy * dy) < DEMO_TRAIL_MIN_DISTANCE * DEMO_TRAIL_MIN_DISTANCE:
+            return
+
+    trail.append({"x": point["x"], "y": point["y"]})
+
+
+def _demo_path_trail(elapsed: float) -> list[dict]:
+    if elapsed <= 0:
+        return []
+
+    sample_count = int(elapsed / DEMO_TRAIL_SAMPLE_SECONDS)
+    trail: list[dict] = []
+
+    for index in range(sample_count + 1):
+        sample_elapsed = min(index * DEMO_TRAIL_SAMPLE_SECONDS, elapsed)
+        position = _interpolate_demo_position(sample_elapsed)["robot_position"]
+        _append_trail_point(trail, position)
+
+    current_position = _interpolate_demo_position(elapsed)["robot_position"]
+    _append_trail_point(trail, current_position)
+
+    return trail[-DEMO_TRAIL_MAX_POINTS:]
+
+
 def _demo_snapshot() -> dict:
     demo = state["demo"]
     elapsed = _demo_elapsed_seconds()
@@ -134,6 +212,8 @@ def _demo_snapshot() -> dict:
 
     qr_events = _demo_qr_events(completed_steps)
     plc_messages = _demo_plc_messages(completed_steps)
+    movement = _interpolate_demo_position(elapsed)
+    robot_path_trail = _demo_path_trail(elapsed)
 
     demo["demo_step_index"] = completed_steps
 
@@ -144,6 +224,10 @@ def _demo_snapshot() -> dict:
         "demo_step_index": completed_steps,
         "demo_route_nodes": DEMO_ROUTE_NODES.copy(),
         "current_node_id": DEMO_ROUTE_NODES[current_node_index],
+        "current_segment_id": movement["current_segment_id"],
+        "segment_progress": movement["segment_progress"],
+        "robot_position": movement["robot_position"],
+        "robot_path_trail": robot_path_trail,
         "completed_segment_ids": completed_segment_ids,
         "active_segment_ids": active_segment_ids,
         "read_qr_ids": read_qr_ids,
@@ -342,6 +426,10 @@ async def get_map_runtime():
             "last_read_qr_id": demo["last_read_qr_id"],
             "read_qr_ids": demo["read_qr_ids"],
             "current_node_id": demo["current_node_id"],
+            "current_segment_id": demo["current_segment_id"],
+            "segment_progress": demo["segment_progress"],
+            "robot_position": demo["robot_position"],
+            "robot_path_trail": demo["robot_path_trail"],
             "gate_status": demo["gate_status"]
         }
 
