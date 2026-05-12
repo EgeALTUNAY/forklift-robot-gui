@@ -12,6 +12,7 @@ state = {
     "battery": 88.5,
     "speed": 0.0,
     "last_manual_command": None,
+    "active_route": None,
 }
 
 @app.get("/health")
@@ -78,6 +79,11 @@ async def get_task_status():
         "description": "Robot kontrollü kapı bölgesine yaklaşıyor.",
         "timestamp": datetime.utcnow().isoformat()
     }
+
+@app.post("/routes/active")
+async def set_active_route(route: dict = Body(...)):
+    state["active_route"] = route
+    return {"success": True, "message": "Active route stored in mock robot backend"}
 
 @app.get("/map/runtime")
 async def get_map_runtime():
@@ -243,4 +249,3 @@ async def get_camera_status():
         "latency_ms": 32,
         "message": "Mock Camera Stream Active"
     }
-

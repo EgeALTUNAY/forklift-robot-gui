@@ -14,9 +14,11 @@ import {
 interface Props {
   selectedRoute: DefinedRoute | null;
   onSave: (route: DefinedRoute) => void;
-  onPreviewChange: (route: DefinedRoute) => void;
+  onPreviewChange: (route: DefinedRoute | null) => void;
   onStartSelection: (mode: "start" | "pickup" | "dropoff") => void;
   onStartWizard: () => void;
+  onReset: () => void;
+  isEditMode: boolean;
   selectionMode: string | null;
 }
 
@@ -27,11 +29,11 @@ function createEmptyRoute(): DefinedRoute {
     id: `R-${Date.now()}`,
     name: "Yeni Rota",
     start_point_id: "START",
-    pickup_point_id: "A2",
-    dropoff_point_id: "B3",
+    pickup_point_id: "",
+    dropoff_point_id: "",
     segment_ids: [],
     qr_sequence: [],
-    gate_required: true,
+    gate_required: false,
     created_at: now,
     updated_at: now,
   };
@@ -43,6 +45,8 @@ export function RouteBuilderPanel({
   onPreviewChange,
   onStartSelection,
   onStartWizard,
+  onReset,
+  isEditMode,
   selectionMode,
 }: Props) {
   const [route, setRoute] = useState<DefinedRoute>(
@@ -131,22 +135,32 @@ export function RouteBuilderPanel({
   const handleNewRoute = () => {
     const fresh = createEmptyRoute();
     setRoute(fresh);
-    onPreviewChange(fresh);
+    onPreviewChange(null);
+    onReset();
   };
 
   return (
-    <div className="card route-builder-panel">
+    <div
+      className={[
+        "card route-builder-panel",
+        isEditMode ? "route-builder-panel--edit" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className="card-title-row">
         <div>
-          <h2>Yeni Rota Oluştur</h2>
+          <h2>{isEditMode ? "Rota Düzenleniyor" : "Yeni Rota Oluştur"}</h2>
           <p className="panel-subtitle">
-            Harita üzerinden alma ve bırakma noktalarını seçin.
+            {isEditMode
+              ? "Bu modda kayıtlı rota güncellenir."
+              : "Harita üzerinden alma ve bırakma noktalarını seçin."}
           </p>
         </div>
 
         <div className="card-actions">
           <button className="btn secondary btn-sm" onClick={handleNewRoute}>
-            Temizle
+            {isEditMode ? "İptal" : "Temizle"}
           </button>
         </div>
       </div>
@@ -233,8 +247,8 @@ export function RouteBuilderPanel({
             <summary>Segment Detaylarını Göster</summary>
             <div className="details-content">
               <div className="mini-chip-list">
-                {route.segment_ids.map((id) => (
-                  <span key={id} className="mini-chip">{id}</span>
+                {route.segment_ids.map((id, index) => (
+                  <span key={`${id}-${index}`} className="mini-chip">{id}</span>
                 ))}
               </div>
             </div>
@@ -252,7 +266,11 @@ export function RouteBuilderPanel({
           disabled={!isComplete}
           onClick={handleSave}
         >
-          {isComplete ? "Rotayı Kaydet" : "Eksik Noktaları Tamamla"}
+          {isComplete
+            ? isEditMode
+              ? "Değişiklikleri Kaydet"
+              : "Rotayı Kaydet"
+            : "Eksik Noktaları Tamamla"}
         </button>
       </div>
     </div>

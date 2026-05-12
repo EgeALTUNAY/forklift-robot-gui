@@ -19,12 +19,9 @@ export function clearActiveRouteId(): void {
 
 export function getActiveRoute(): DefinedRoute | null {
   const id = getActiveRouteId();
+  if (!id) return null;
+
   const routes = loadRoutes();
-  if (!id && routes.length > 0) {
-    // Demo fallback: Make the first one active if none is active
-    setActiveRouteId(routes[0].id);
-    return routes[0];
-  }
   return routes.find((r) => r.id === id) ?? null;
 }
 
@@ -33,15 +30,18 @@ export function loadRoutes(): DefinedRoute[] {
 
   if (!raw) {
     // Provide a default matching the mock backend (A2 -> B3)
+    const now = new Date().toISOString();
     const defaultDemoRoute: DefinedRoute = {
       id: "R_A2_B3",
       name: "Demo Aktif Rota (A2 -> B3)",
+      start_point_id: "START",
       pickup_point_id: "A2",
       dropoff_point_id: "B3",
       segment_ids: ["START_D1", "D1_D2", "D2_D3", "D3_GATE", "GATE_D4", "D4_D6", "D6_B3"],
       qr_sequence: ["q1", "q2", "q3", "q4", "q5", "q6", "q7"],
       gate_required: true,
-      created_at: new Date().toISOString()
+      created_at: now,
+      updated_at: now,
     };
     saveRoutes([defaultDemoRoute]);
     return [defaultDemoRoute];

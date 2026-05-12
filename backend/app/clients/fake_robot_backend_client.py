@@ -16,12 +16,14 @@ from app.schemas.manual_status import (
     ManualInputSource,
 )
 from app.schemas.camera import CameraStatus
+from app.schemas.route import DefinedRoute
 
 class FakeRobotBackendClient(RobotBackendClientInterface):
     def __init__(self):
         self.manual_mode = False
         self.emergency = False
         self.last_command = None
+        self.active_route: DefinedRoute | None = None
 
 
     async def get_manual_control_status(self) -> ManualControlStatus:
@@ -351,6 +353,10 @@ class FakeRobotBackendClient(RobotBackendClientInterface):
             description="Robot kontrollü kapı bölgesine yaklaşıyor ve fabrika otomasyon sisteminden izin bekliyor.",
             timestamp=datetime.utcnow(),
         )
+
+    async def set_active_route(self, route: DefinedRoute) -> bool:
+        self.active_route = route
+        return True
 
     async def ping(self) -> bool:
         return True

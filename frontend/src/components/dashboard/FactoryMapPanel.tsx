@@ -186,7 +186,7 @@ export function FactoryMapPanel({
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
         >
-          {routeSegments.map((segment) => {
+          {routeSegments.map((segment, index) => {
             const from = pointMap.get(segment.from);
             const to = pointMap.get(segment.to);
 
@@ -196,7 +196,7 @@ export function FactoryMapPanel({
 
             return (
               <line
-                key={segment.id}
+                key={`${segment.id}-${index}`}
                 className={getSegmentClass(segment, runtimeStatus)}
                 x1={from.x}
                 y1={from.y}

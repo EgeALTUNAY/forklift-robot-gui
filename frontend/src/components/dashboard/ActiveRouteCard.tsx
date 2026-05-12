@@ -28,7 +28,7 @@ export function ActiveRouteCard() {
     return (
       <div className="active-route-card active-route-card--empty">
         <span className="active-route-card__label">Tanımlı Aktif Rota</span>
-        <span className="active-route-card__none">— Henüz aktif rota seçilmedi —</span>
+        <span className="active-route-card__none">Henüz aktif rota seçilmedi</span>
       </div>
     );
   }
@@ -36,10 +36,9 @@ export function ActiveRouteCard() {
   return (
     <div className="active-route-card active-route-card--set">
       <div className="active-route-card__left">
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span className="active-route-card__label">Tanımlı Aktif Rota</span>
-          <span style={{ fontSize: '0.65rem', color: '#888', marginBottom: '4px' }}>Operatör tarafından seçilen demo rotası</span>
-        </div>
+        <span className="active-route-card__label">
+          Operatörün Seçtiği Aktif Rota
+        </span>
         <strong className="active-route-card__name">{activeRoute.name}</strong>
         <span className="active-route-card__id">{activeRoute.id}</span>
       </div>
@@ -50,7 +49,7 @@ export function ActiveRouteCard() {
         <span className="active-route-card__detail">
           {activeRoute.segment_ids.length} segment ·{" "}
           {activeRoute.qr_sequence.length} QR ·{" "}
-          {activeRoute.gate_required ? "Kapı geçişli" : "Kapısız"}
+          {activeRoute.gate_required ? "Kapı gerekli" : "Kapı gerekmiyor"}
         </span>
       </div>
     </div>

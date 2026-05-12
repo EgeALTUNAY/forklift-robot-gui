@@ -9,6 +9,7 @@ from app.schemas.alert import AlertItem
 from app.schemas.task import TaskStatus
 from app.schemas.manual_status import ManualControlStatus
 from app.schemas.camera import CameraStatus
+from app.schemas.route import DefinedRoute
 
 class RobotBackendClientInterface(Protocol):
     async def get_robot_state(self) -> RobotState:
@@ -50,6 +51,10 @@ class RobotBackendClientInterface(Protocol):
 
     async def get_task_status(self) -> TaskStatus:
         ...
+
+    async def set_active_route(self, route: DefinedRoute) -> bool:
+        ...
+
     async def get_manual_control_status(self) -> ManualControlStatus:
         ...
     async def ping(self) -> bool:

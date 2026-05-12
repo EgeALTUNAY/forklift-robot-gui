@@ -12,6 +12,7 @@ from app.schemas.alert import AlertItem
 from app.schemas.task import TaskStatus
 from app.schemas.manual_status import ManualControlStatus
 from app.schemas.camera import CameraStatus
+from app.schemas.route import DefinedRoute
 
 
 class RealRobotBackendClient(RobotBackendClientInterface):
@@ -96,6 +97,13 @@ class RealRobotBackendClient(RobotBackendClientInterface):
     async def release_emergency_stop(self) -> bool:
         data = await self._post("/release-emergency-stop")
         return data.get("success", False)
+
+    async def set_active_route(self, route: DefinedRoute) -> bool:
+        data = await self._post(
+            "/routes/active",
+            json_data=route.model_dump(mode="json"),
+        )
+        return data.get("success", True)
 
     # For health check
     async def ping(self) -> bool:

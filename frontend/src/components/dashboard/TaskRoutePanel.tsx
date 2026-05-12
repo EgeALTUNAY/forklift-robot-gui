@@ -58,15 +58,14 @@ export function TaskRoutePanel({ task }: Props) {
       <div className="card-title-row task-title-row">
         <div>
           <h2>Görev ve Rota Durumu</h2>
-          {activeRoute && (
-             <p className="panel-subtitle task-route-subtitle">
-               <strong>{activeRoute.name}</strong> - Operatör tarafından seçilen demo rotası.
-             </p>
-          )}
         </div>
         <span className={`task-phase-pill ${getTaskPhaseClass(task.phase)}`}>
           {getTaskPhaseLabel(task.phase)}
         </span>
+      </div>
+
+      <div className="task-route-section">
+        <div className="task-route-section__header">Robot Görevi</div>
       </div>
 
       <div className="task-progress-block">
@@ -132,6 +131,49 @@ export function TaskRoutePanel({ task }: Props) {
           {task.description}
         </div>
       )}
+
+      <div className="task-route-section task-route-section--operator">
+        <div className="task-route-section__header">
+          Operatörün Seçtiği Aktif Rota
+        </div>
+
+        {!activeRoute ? (
+          <div className="task-route-empty">
+            Henüz aktif rota seçilmedi
+          </div>
+        ) : (
+          <div className="task-status-grid task-status-grid--operator-route">
+            <div>
+              <span>Rota Adı</span>
+              <strong>{activeRoute.name}</strong>
+            </div>
+
+            <div>
+              <span>Rota</span>
+              <strong>
+                {activeRoute.pickup_point_id} → {activeRoute.dropoff_point_id}
+              </strong>
+            </div>
+
+            <div>
+              <span>Segment Sayısı</span>
+              <strong>{activeRoute.segment_ids.length}</strong>
+            </div>
+
+            <div>
+              <span>QR Sayısı</span>
+              <strong>{activeRoute.qr_sequence.length}</strong>
+            </div>
+
+            <div>
+              <span>Kapı Gereksinimi</span>
+              <strong>
+                {activeRoute.gate_required ? "Kapı gerekli" : "Kapı gerekmiyor"}
+              </strong>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

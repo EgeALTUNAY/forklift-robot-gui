@@ -15,8 +15,10 @@ import {
   setActiveRouteId,
   clearActiveRouteId,
 } from "../../services/routeStorage";
+import { sendActiveRoute } from "../../services/routesApi";
 
 type SelectionMode = "start" | "pickup" | "dropoff" | null;
+type BackendSyncStatus = "idle" | "success" | "error";
 
 function createRuntimeFromRoute(route: DefinedRoute | null): MapRuntimeStatus {
   if (!route) {
@@ -62,31 +64,53 @@ export function RouteDefinitionPage() {
   const [activeRouteId, setActiveRouteIdState] = useState<string | null>(
     () => getActiveRouteId()
   );
+  const [backendSyncStatus, setBackendSyncStatus] =
+    useState<BackendSyncStatus>("idle");
 
   const [selectionMode, setSelectionMode] = useState<SelectionMode>(null);
+  const [isWizard, setIsWizard] = useState(false);
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
+  const [builderResetToken, setBuilderResetToken] = useState(0);
 
-  const selectedRoute = useMemo(() => {
-    return routes.find((route) => route.id === selectedRouteId) ?? null;
-  }, [routes, selectedRouteId]);
+  const editingRoute = useMemo(() => {
+    return routes.find((route) => route.id === editingRouteId) ?? null;
+  }, [routes, editingRouteId]);
 
   const activeRoute = useMemo(() => {
     return routes.find((route) => route.id === activeRouteId) ?? null;
   }, [routes, activeRouteId]);
 
   const runtimeStatus = useMemo(() => {
-    return createRuntimeFromRoute(previewRoute ?? selectedRoute);
-  }, [previewRoute, selectedRoute]);
+    return createRuntimeFromRoute(previewRoute);
+  }, [previewRoute]);
+
+  const resetBuilder = () => {
+    setEditingRouteId(null);
+    setSelectedRouteId(null);
+    setPreviewRoute(null);
+    setSelectionMode(null);
+    setIsWizard(false);
+    setBackendSyncStatus("idle");
+    setBuilderResetToken((token) => token + 1);
+  };
 
   const handleSave = (route: DefinedRoute) => {
     const updatedRoutes = upsertRoute(route);
     setRoutes(updatedRoutes);
-    setSelectedRouteId(route.id);
-    setPreviewRoute(route);
+    resetBuilder();
   };
 
   const handleSelectRoute = (route: DefinedRoute) => {
     setSelectedRouteId(route.id);
     setPreviewRoute(route);
+  };
+
+  const handleEditRoute = (route: DefinedRoute) => {
+    setEditingRouteId(route.id);
+    setSelectedRouteId(route.id);
+    setPreviewRoute(route);
+    setSelectionMode(null);
+    setIsWizard(false);
   };
 
   const handleDeleteRoute = (routeId: string) => {
@@ -100,18 +124,24 @@ export function RouteDefinitionPage() {
       notifyActiveRouteChanged();
     }
 
+    if (editingRouteId === routeId) {
+      resetBuilder();
+      return;
+    }
+
     const nextRoute = updatedRoutes[0] ?? null;
     setSelectedRouteId(nextRoute?.id ?? null);
     setPreviewRoute(nextRoute);
   };
 
-  const handleSetActiveRoute = (routeId: string) => {
-    setActiveRouteId(routeId);
-    setActiveRouteIdState(routeId);
+  const handleSetActiveRoute = async (route: DefinedRoute) => {
+    setActiveRouteId(route.id);
+    setActiveRouteIdState(route.id);
     notifyActiveRouteChanged();
-  };
 
-  const [isWizard, setIsWizard] = useState(false);
+    const success = await sendActiveRoute(route);
+    setBackendSyncStatus(success ? "success" : "error");
+  };
 
   const selectablePointTypes: MapPointType[] = useMemo(() => {
     if (selectionMode === "start") return ["start"];
@@ -191,16 +221,23 @@ export function RouteDefinitionPage() {
         )}
 
         {/* Active route indicator */}
-        {!selectionMode && activeRoute && (
-          <div className="active-route-indicator active-route-indicator--set">
-            <span className="active-route-indicator__dot" />
-            <span>
-              Aktif Rota: <strong>{activeRoute.name}</strong>{" "}
-              <span className="active-route-indicator__id">
-                ({activeRoute.id})
+        {!selectionMode && (
+          activeRoute ? (
+            <div className="active-route-indicator active-route-indicator--set">
+              <span className="active-route-indicator__dot" />
+              <span>
+                Aktif Rota: <strong>{activeRoute.name}</strong>{" "}
+                <span className="active-route-indicator__id">
+                  ({activeRoute.id})
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
+          ) : (
+            <div className="active-route-indicator active-route-indicator--none">
+              <span className="active-route-indicator__dot" />
+              <span>Henüz aktif rota seçilmedi</span>
+            </div>
+          )
         )}
       </div>
 
@@ -215,11 +252,14 @@ export function RouteDefinitionPage() {
 
       <div className="route-definition-layout">
         <RouteBuilderPanel
-          selectedRoute={selectedRoute}
+          key={builderResetToken}
+          selectedRoute={editingRoute}
           onSave={handleSave}
           onPreviewChange={setPreviewRoute}
           onStartSelection={setSelectionMode}
           onStartWizard={startWizard}
+          onReset={resetBuilder}
+          isEditMode={!!editingRoute}
           selectionMode={selectionMode}
         />
 
@@ -246,6 +286,20 @@ export function RouteDefinitionPage() {
 
           {routes.length > 0 && (
             <div className="saved-route-list">
+              {backendSyncStatus !== "idle" && (
+                <div
+                  className={
+                    backendSyncStatus === "success"
+                      ? "route-sync-message route-sync-message--success"
+                      : "route-sync-message route-sync-message--error"
+                  }
+                >
+                  {backendSyncStatus === "success"
+                    ? "Aktif rota backend'e gönderildi"
+                    : "Aktif rota local olarak seçildi ancak backend'e gönderilemedi."}
+                </div>
+              )}
+
               {routes.map((route) => (
                 <div
                   key={route.id}
@@ -273,15 +327,22 @@ export function RouteDefinitionPage() {
 
                   <div className="saved-route-row__actions">
                     <button
+                      className="route-edit-button"
+                      onClick={() => handleEditRoute(route)}
+                    >
+                      Düzenle
+                    </button>
+
+                    <button
                       className={
                         route.id === activeRouteId
                           ? "route-activate-button route-activate-button--active"
                           : "route-activate-button"
                       }
-                      onClick={() => handleSetActiveRoute(route.id)}
+                      onClick={() => handleSetActiveRoute(route)}
                       title="Bu rotayı aktif rota yap"
                     >
-                      {route.id === activeRouteId ? "✓ Aktif" : "Aktif Yap"}
+                      {route.id === activeRouteId ? "✓ Aktif" : "Aktif Rota Yap"}
                     </button>
 
                     <button

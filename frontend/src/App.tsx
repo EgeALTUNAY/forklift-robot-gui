@@ -18,6 +18,7 @@ import { AlertPanel } from "./components/dashboard/AlertPanel";
 import { TaskRoutePanel } from "./components/dashboard/TaskRoutePanel";
 import { EventFeedTabs } from "./components/dashboard/EventFeedTabs";
 import { CameraPanel } from "./components/dashboard/CameraPanel";
+import { ActiveRouteCard } from "./components/dashboard/ActiveRouteCard";
 
 const getConnectionText = (state: ConnectionState) => {
   switch (state) {
@@ -71,6 +72,8 @@ function App() {
 
         {activeTab === "dashboard" && (
           <div className="operator-layout">
+            <ActiveRouteCard />
+
             {error && (
               <div className="error-banner" role="alert">
                 <div className="error-banner-content">
