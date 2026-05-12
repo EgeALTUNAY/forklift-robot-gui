@@ -1,0 +1,37 @@
+# Env
+.env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+backend/**/__pycache__/
+backend/.venv/
+backend/venv/
+venv/
+.venv/
+
+# Logs / temp
+logs/
+*.log
+backend/scratch/
+backend/tmp/
+backend/temp/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json*.dmg
