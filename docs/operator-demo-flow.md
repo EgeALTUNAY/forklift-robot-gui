@@ -1,109 +1,119 @@
-# Forklift Robot GUI - Operatör Demo Akışı
+# Forklift Robot GUI - Operator Demo Flow
 
-Bu doküman, sistemin demonstrasyon ve test süreçleri için izlenmesi gereken adımları, temel özellikleri ve dikkat edilmesi gereken noktaları içerir.
+This document details the procedural steps, primary features, and critical evaluation parameters required for system demonstrations and integration testing.
 
-## 1. Sistemi Başlatma Sırası
+## 1. System Initialization Sequence
 
-Sistemin düzgün çalışması için bileşenlerin aşağıdaki sırayla başlatılması önerilir:
+To ensure seamless component discovery and lifecycle management, boot the architecture strictly in the following order:
 
-1.  **Mock Robot Backend (Port 9000):** Robot donanımını ve ana kontrolcü yazılımını simüle eder.
-2.  **GUI Backend (Port 8000):** Ana API sunucusu ve WebSocket koordinatörüdür.
-3.  **Frontend (Port 5173):** Operatör kontrol paneli arayüzüdür.
+1. **Mock Robot Backend (Port 9000):** Simulates the core robot hardware and low-level controller pipelines.
+2. **GUI Backend (Port 8000):** Operates as the central API gateway and real-time WebSocket orchestrator.
+3. **Frontend (Port 5173):** Hosts the web-based operator control panel interface.
 
-## 2. Çalıştırma Komutları
+## 2. Execution Commands
 
-### A. Fake Mode (Tam Simülasyon)
-Hiçbir robot backend'ine ihtiyaç duymadan, GUI Backend içinde üretilen rastgele verilerle çalışır. UI testleri için uygundur.
+### A. Fake Mode (Full Simulation)
+
+Generates high-fidelity synthetic telemetry directly inside the GUI Backend, decoupling development from any active robot software layer. Recommended for UI/UX testing.
+
 ```bash
-# Backend
+# Backend Execution
 cd backend
 ROBOT_CLIENT_MODE=fake uvicorn app.main:app --reload --port 8000
 
-# Frontend
+# Frontend Execution
 cd frontend
 npm run dev
+
 ```
 
-### B. Real + Mock Backend Mode (Entegrasyon Testi)
-GUI Backend, ayrı bir süreç olarak çalışan Mock Robot Backend ile haberleşir. Donanım entegrasyonu testi için en yakın moddur.
+### B. Real + Mock Backend Mode (Integration Testing)
+
+The GUI Backend targets a separate Mock Robot Backend running as an independent system process. This represents the closest software environment to actual physical hardware deployment.
+
 ```bash
-# 1. Terminal: Mock Robot Backend
+# Terminal 1: Spin up Mock Robot Backend
 cd backend
 uvicorn mock_robot_backend.main:app --reload --port 9000
 
-# 2. Terminal: GUI Backend
+# Terminal 2: Spin up GUI Backend in Real Mode targeting the Mock URL
 cd backend
 ROBOT_CLIENT_MODE=real ROBOT_BACKEND_URL=http://localhost:9000 uvicorn app.main:app --reload --port 8000
 
-# 3. Terminal: Frontend
+# Terminal 3: Spin up Frontend
 cd frontend
 npm run dev
+
 ```
 
-## 3. Operatör Dashboard Takibi
+## 3. Operator Dashboard Monitoring
 
-Dashboard ana ekranında aşağıdaki bileşenler anlık olarak izlenir:
--   **Fabrika Haritası:** Robotun konumu, aktif rotası ve QR istasyonları.
--   **Görev Durumu:** Mevcut görevin aşaması, ilerleme yüzdesi ve kalan süre.
--   **Aktif Rota:** "Haritadan Rota Oluştur" sayfasında seçilen ve o an uygulanan rota özeti.
--   **Kamera (MVP):** Robot üzerindeki kameradan gelen canlı görüntü (MJPEG proxy).
--   **Manuel Kontrol Durumu:** Fiziksel anahtarın konumu, remote yetkisi ve aktif kumanda kaynağı.
--   **Alert Panel:** Sistemdeki kritik uyarılar ve hata mesajları.
--   **Alt Feed Panelleri:** QR okuma olayları, PLC mesajları ve teknik loglar.
+The primary dashboard layout serves as a single pane of glass to observe live telemetry metrics:
 
-## 4. Rota Tanımlama Akışı
+* **Factory Map Layout:** Renders real-time vehicle positioning, active paths, and physical QR navigation nodes.
+* **Task Status Pipeline:** Tracks active operational stages, completion percentages, and estimated time of arrival (ETA).
+* **Active Route Mapping:** Summarizes the dynamic path profile pushed from the routing configuration engine.
+* **Camera Feed (MVP):** Displays live environmental visibility streamed securely via an MJPEG proxy configuration.
+* **Manual Control Status Panel:** Monitors the physical vehicle key switch, software control permissions, and the active overriding input source.
+* **Alert Panel:** Highlights low-latency system diagnostics, mechanical faults, and software exceptions.
+* **Sub-Feed Loggers:** Chronologically tracks QR tracking events, PLC transactional payloads, and verbose debug logs.
 
-1.  "Haritadan Rota Oluştur" sekmesine geçin.
-2.  Başlangıç noktasının sabit (**START**) olduğunu doğrulayın.
-3.  Harita üzerinden bir **Alma Noktası (A1, A2 veya A3)** seçin.
-4.  Harita üzerinden bir **Bırakma Noktası (B1, B2 veya B3)** seçin.
-5.  Sistem, START -> Alma -> Bırakma rotasını otomatik hesaplar.
-6.  Rotaya bir isim verip **Kaydet** butonuna basın.
-7.  Kaydedilen rotayı listeden bulun ve **Aktif Rota Yap** butonuna tıklayarak Dashboard'a gönderin.
+## 4. Route Definition Workflow
 
-## 5. Manuel Kontrol / Gamepad Test Akışı
+1. Navigate to the **"Create Route from Map"** view.
+2. Verify that the routing origin coordinate is statically set to **START**.
+3. Select an ingestion checkpoint from the A nodes via the map canvas: `A1`, `A2`, or `A3`.
+4. Select a drop-off checkpoint from the B nodes via the map canvas: `B1`, `B2`, or `B3`.
+5. The system automatically computes the complete routing tree (`START -> Ingestion -> Drop-off`).
+6. Input a distinct identifier name for the generated route and click **Save**.
+7. Locate the newly created profile within the routing queue and execute **Set as Active Route** to push the trajectory live to the dashboard tracking display.
 
-1.  **Yetki Kontrolü:** Mock backend üzerinden fiziksel anahtarın `MANUAL` konumuna alındığından emin olun.
-2.  **Gamepad Bağlantısı:** USB veya Bluetooth üzerinden bir gamepad bağlayın. "Gamepad Bağlı" uyarısını görün.
-3.  **Deadman Switch:** Gamepad üzerindeki Deadman butonuna (A/Cross) basılı tutun.
-4.  **Komut Gönderimi:** Analog çubuklar ile hız ve yön komutları gönderin.
-5.  **ACK/Reject Takibi:** Dashboard'daki manuel kontrol panelinde komutların kabul edildiğini (✓) veya reddedilme sebebini (✗) izleyin.
-    -   *AUTO* moddayken komut göndererek reddedildiğini doğrulayın.
-    -   *E-Stop* aktifken komut göndererek reddedildiğini doğrulayın.
+## 5. Manual Control / Gamepad Validation Routine
 
-## 6. E-Stop Test Akışı
+1. **Authorization Check:** Adjust the mock backend telemetry settings to confirm the physical hardware key switch reads as `MANUAL`.
+2. **Controller Discovery:** Connect a gamepad device via USB or Bluetooth. Ensure the interface prompts a "Gamepad Connected" success banner.
+3. **Deadman Verification:** Press and hold down the **Deadman switch (Button A/Cross)** on the gamepad hardware.
+4. **Command Injection:** Actuate the analog joysticks to transmit direction vectors, velocity parameters, and lifting adjustments.
+5. **ACK/Reject Loop Monitoring:** Watch the dashboard confirmation logs to verify if packets are handled correctly (✓) or blocked (✗) due to safety infractions:
+* Attempt a driving sequence while the vehicle switch reads as *AUTO* to confirm the command is blocked.
+* Attempt a driving sequence while an *E-Stop* state is active to confirm the command is blocked.
 
-1.  Dashboard üzerindeki veya donanımdaki E-Stop butonuna basın.
-2.  Tüm ekranın kırmızı "ACİL STOP" bandıyla kaplandığını görün.
-3.  PLC Mesaj ekranında "ERROR / E-Stop Active" mesajının düştüğünü kontrol edin.
-4.  E-Stop basılıyken manuel veya otonom hiçbir komutun işlenmediğini doğrulayın.
-5.  Reset butonu ile sistemi normale döndürün.
 
-## 7. Kamera Test Akışı
 
-1.  Camera Panel üzerindeki "CANLI" ibaresini ve gecikme (ms) değerini kontrol edin.
-2.  **Güvenlik Kontrolü:** Tarayıcı network sekmesinde 9000 portuna doğrudan istek gitmediğini, tüm trafiğin GUI Backend'in `/api/camera/stream` endpoint'i üzerinden geçtiğini doğrulayın.
+## 6. Emergency Stop (E-Stop) Validation Routine
 
-## 8. PLC Mesaj Ekranı
+1. Trigger an emergency state by clicking the digital E-Stop button on the dashboard interface or simulating a hardware button press.
+2. Verify that the entire application UI instantly locks under a bright red flashing "EMERGENCY STOP" overlay banner.
+3. Check the PLC streaming feed to verify that a high-priority `"ERROR / E-Stop Active"` signal payload has logged successfully.
+4. Verify that all automated trajectories or manual gamepad commands are completely ignored by the processing backend while the emergency state is maintained.
+5. Clear the emergency switch and click the **Reset** button to restore standard operational parameters.
 
-Bu panel, operasyonel süreçteki mesajlaşmaları gösterir:
--   **Robot → PLC:** "Durum Bildirimi / Görev Tamamlandı" vb.
--   **PLC → Robot:** "Görev Atama / Kapı Açıldı" vb.
--   **Kapı İzin Talebi/Yanıtı:** Kritik kavşak ve kapı geçiş izinleri.
--   **Fark:** "Teknik PLC Logları" detaylı debug bilgisi içerirken, bu panel sadece alınıp verilen anlamlı paketleri gösterir.
+## 7. Video Stream Validation Routine
 
-## 9. Demo Başarı Kriterleri
+1. Observe the Camera Feed panel to ensure the text status indicator reads **"LIVE"** alongside a real-time latency readout (ms).
+2. **Security Infrastructure Check:** Open the browser's Developer Tools Network panel. Verify that zero outgoing requests are targetting Port 9000 directly. All active image payloads must proxy strictly through the GUI Backend's designated endpoint: `/api/camera/stream`.
 
--   WebSocket bağlantısının kopmadan devam etmesi (10Hz akış).
--   E-Stop durumunun tüm backend ve frontend katmanlarında senkronize olması.
--   Manuel kontrolde Deadman bırakıldığı anda robotun durması.
--   GUI Backend'in, robot backend kapansa bile operatöre anlamlı hata mesajları göstermesi.
--   **Kamera Proxy:** Frontend'in 9000 portuna doğrudan gitmediğinin, 8000 üzerinden proxy yayını aldığının doğrulanması.
--   **PLC Mesaj Ayrımı:** Robot -> PLC (Mavi) ve PLC -> Robot (Yeşil) renk ayrımlarının panelde doğru görünmesi.
+## 8. PLC Communication Panel
 
-## 10. Bilinen Sınırlamalar ve Uyarılar
+This specialized telemetry view filters higher-level manufacturing messaging and automation logic:
 
--   **Kamera:** Mevcut sürüm MJPEG proxy (MVP) kullanır; yüksek performanslı WebRTC bir sonraki aşamada eklenecektir.
--   **Saha Testi:** Tüm testler mock backend ile yapılmıştır. Gerçek robot, PLC ve kamera donanımları ile saha testi şarttır.
--   **Güvenlik:** İlk fiziksel sürüşler mutlaka tekerlekler askıdayken veya çok düşük hız limitlerinde yapılmalıdır.
--   **Contract:** Gerçek robot yazılımı `docs/robot-backend-contract.md` dosyasındaki API yapısına birebir uymalıdır.
+* **Robot → PLC Transactions:** Status updates, task execution logs, and drop-off confirmations.
+* **PLC → Robot Transactions:** Dynamic order dispatching, facility gate permissions, and traffic management variables.
+* **Interlock Requests:** Handshake validation logs managing intersections and automated door authorization handshakes.
+* **Data Isolation Note:** Unlike the verbose "Technical PLC Logs" view which prints raw byte packets for low-level debugging, this panel maps out cleanly structured, human-readable operational events.
+
+## 9. Demo Success Criteria
+
+* Continuous, stable WebSocket telemetry streaming operating at a consistent refresh profile (10Hz pipeline).
+* Immediate, synchronized propagation of the E-Stop state across all decoupled architectural boundaries (Frontend, GUI Backend, and Robot Backend).
+* Instantaneous vehicle stop execution the exact millisecond the physical gamepad Deadman switch is released.
+* Clean error recovery and user-friendly error state screens on the UI if the underlying robot system process disconnects or crashes unexpectedly.
+* **Camera Proxy Isolation:** Verification that the client completely isolates the secure internal network layer by pulling image arrays through Port 8000 rather than reaching directly into Port 9000.
+* **PLC UI Readability:** Verification that incoming and outgoing automated transactions map cleanly to color-coded terminal buckets (`Robot -> PLC` rendered in Blue; `PLC -> Robot` rendered in Green).
+
+## 10. Known Limitations and Warnings
+
+* **Camera Performance:** The current MVP relies on an HTTP MJPEG stream proxy architecture. High-throughput, sub-millisecond WebRTC infrastructure is preserved as a placeholder configuration for next-phase updates.
+* **Simulation Constraints:** Architectural validations have been executed against simulated or mock data engines. Extensive live verification on actual industrial drivetrains, hardware PLC arrays, and real cameras remains mandatory.
+* **Physical Safety Protocols:** Initial real-world drive evaluations must be executed either with the physical vehicle chassis raised on support blocks or restricted to heavily limited maximum velocity boundaries.
+* **Data Contract Strictness:** To bridge safely with the real machinery, the engineering team's native robot controller software must perfectly replicate the network contracts defined in `docs/robot-backend-contract.md`.
