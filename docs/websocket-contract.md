@@ -1,76 +1,85 @@
-# WebSocket Entegrasyon Sözleşmesi
+# WebSocket Integration Contract
 
-Bu doküman, Frontend (Operatör Arayüzü) ile GUI Backend (Port 8000) arasındaki WebSocket tabanlı haberleşme standartlarını tanımlar.
+This document defines the WebSocket-based communication standards between the Frontend (Operator Interface) and the GUI Backend (Port 8000).
 
-**Kritik Kural:** Frontend hiçbir zaman doğrudan Robot veya Mock Backend'in (Port 9000) IP/Port bilgilerine erişmez. Tüm WebSocket, REST ve kamera trafiği sadece GUI Backend (Port 8000) üzerinden yönlendirilir.
+**Critical Rule:** The frontend never directly accesses the IP/Port configuration of the native Robot or Mock Backend (Port 9000). All WebSocket, REST, and camera streaming traffic must route strictly through the GUI Backend (Port 8000).
 
 ---
 
-## 1. Dashboard Haberleşmesi (`/ws/dashboard`)
+## 1. Dashboard Communication (`/ws/dashboard`)
 
-Robotun anlık durumunun mevcut MVP'de yaklaşık 1 Hz hızında periyodik snapshot yayını olarak frontend'e basıldığı tek yönlü (Server -> Client) kanaldır. 
+This is a unidirectional (Server -> Client) streaming channel where the real-time status of the robot is broadcasted to the frontend as a periodic snapshot payload. In the current MVP, the refresh interval operates at approximately 1 Hz.
 
-### Event Yapısı
-Tüm mesajlar aşağıdaki JSON formatında gönderilir:
+### Event Structure
+
+All network messages within this stream are wrapped in the following JSON template:
+
 ```json
 {
   "type": "dashboard_snapshot",
   "payload": { ... }
 }
+
 ```
 
-### `dashboard_snapshot` Payload Alanları
-Snapshot, sistemin o anki tam fotoğrafını içerir:
-- `robot_state`: Hız, pil, mod ve E-Stop durumu.
-- `plc_logs`: Sistemin teknik logları.
-- `plc_messages`: Robot ve PLC arasındaki anlamlı iletişim (Görev, Kapı izni vb.).
-- `qr_events`: Robotun okuduğu son QR etiketleri.
-- `map_runtime_status`: Aktif segmentler, başlangıç/bitiş noktaları ve kapı durumları.
-- `alerts`: Kritik uyarı ve hatalar.
-- `task_status`: Mevcut görev aşaması, ilerleme yüzdesi ve kalan süre.
-- `manual_control_status`: Fiziksel anahtar konumu ve uzaktan kontrol yetkisi.
-- `camera_status`: Kamera proxy yayın linki ve bağlantı durumu.
-- `ok`: Tüm verilerin başarıyla alınıp alınmadığını belirten boolean.
-- `error`: Eğer veriler çekilemezse (örn: robot backend kapalıysa) gösterilecek hata metni.
+### `dashboard_snapshot` Payload Fields
+
+The snapshot encapsulates a complete comprehensive state evaluation of the machine:
+
+* `robot_state`: Linear/angular velocity, battery charge metric, control mode, and active E-Stop telemetry.
+* `plc_logs`: Highly verbose low-level technical logging data.
+* `plc_messages`: Handshaking events and parsed semantic signals exchanged between the robot and physical PLC (e.g., job assignments, facility door clearances).
+* `qr_events`: Array logs tracking the most recently registered physical QR navigation coordinates.
+* `map_runtime_status`: Live tracking data of operational grid segments, path targets, and factory door positions.
+* `alerts`: Active mechanical fault triggers, safety rule violations, and functional exceptions.
+* `task_status`: Processing phase metadata, current itinerary completion percentage, and estimated time of arrival (ETA).
+* `manual_control_status`: Physical hardware key state and network-side overriding clearance states.
+* `camera_status`: Access link to the active proxy endpoint and interface stream verification metrics.
+* `ok`: A functional Boolean flag indicating whether telemetry streams compiled without database errors.
+* `error`: Explanatory log text populated if backend systems fail to gather robot state parameters (e.g., if the robot core system process crashes).
 
 ---
 
-## 2. Manuel Kontrol Haberleşmesi (`/ws/manual-control`)
+## 2. Manual Control Communication (`/ws/manual-control`)
 
-Operatörün gamepad komutlarını 10 Hz (saniyede 10 kez) hızında GUI Backend'e ilettiği çift yönlü kanaldır.
+This is a high-frequency, bidirectional socket pipeline operating at a consistent 10 Hz profile (10 iterations per second), transferring manual operator input instructions directly to the GUI Backend.
 
 ### `ManualCommandFrame` (Client -> Server)
-Frontend, her komut karesini aşağıdaki yapıyla iletir:
-- `source`: Komutun kaynağı (`GAMEPAD`, `GUI_TEST` vb.).
-- `seq`: İletilen paketin sıra numarası (0, 1, 2...).
-- `timestamp`: Gönderim anının ISO 8601 zaman damgası.
-- `deadman_pressed`: Gamepad üzerindeki "Deadman" butonunun o anki basılı olma durumu (boolean).
-- `vx`: İleri/geri hız komutu (backend tarafında güvenli limitlere clamp edilir).
-- `omega`: Sağ/sol dönüş komutu (backend tarafında güvenli limitlere clamp edilir).
-- `lift`: Asansör aşağı/yukarı komutu (backend tarafında güvenli limitlere clamp edilir).
+
+The client application dispatches input configurations encapsulated within the following structure:
+
+* `source`: Tracking label detailing the physical origin of the override instruction (`GAMEPAD`, `GUI_TEST`, etc.).
+* `seq`: Incrementing package sequence tracking ID (0, 1, 2...).
+* `timestamp`: ISO 8601 formatting timestamp mapping the transmission generation time.
+* `deadman_pressed`: Boolean evaluating the continuous execution status of the gamepad's physical deadman trigger.
+* `vx`: Target linear forward/reverse velocity vector (constrained by backend clamp safety layers).
+* `omega`: Target angular steering velocity vector (constrained by backend clamp safety layers).
+* `lift`: Target elevation adjustments for the physical forklift apparatus (constrained by backend clamp safety layers).
 
 ### `ManualCommandAck` (Server -> Client)
-Backend, gelen her Frame'i değerlendirir ve aşağıdaki ACK (Onay/Red) paketini döner:
-- `accepted`: Komutun robota iletilip iletilmediği (boolean).
-- `reason`: Eğer reddedildiyse sebebi (örn: "Deadman butonu basılı değil", "E-Stop aktif").
-- `seq`: Hangi pakete yanıt verildiğini belirten sıra numarası.
-- `timestamp`: Yanıtın oluşturulduğu anın zaman damgası.
+
+The GUI Backend layer immediately analyzes each input block and returns a corresponding execution confirmation payload:
+
+* `accepted`: Boolean confirmation reporting whether the frame was processed and successfully deployed on the robot drivetrain.
+* `reason`: Descriptive context logged upon validation failures (e.g., "Deadman switch released", "Active E-Stop loop detected").
+* `seq`: Corresponding package sequence reference indicating which packet generated this acknowledgment response.
+* `timestamp`: Generation timestamp indicating exactly when the acknowledgment execution frame was resolved.
 
 ---
 
-## 3. Reconnect ve REST Fallback Davranışı
+## 3. Reconnection and REST Fallback Operations
 
-- **Dashboard:** İlk açılışta REST snapshot alınır, `/ws/dashboard` bağlantısı koptuğunda frontend otomatik olarak yeniden bağlanmayı dener (Exponential Backoff); gerektiğinde REST fallback kullanılabilir.
-- **Manual Control:** `/ws/manual-control` koparsa, bağlantı tamamen kesilir ve güvenlik gereği otomatik Reconnect yapılmaz. Operatörün tekrar manuel moda girmesi gerekir.
+* **Dashboard Panel:** Initial dashboard loading operations execute a baseline synchronous state call via standard REST endpoints. If the primary `/ws/dashboard` connection fails, the frontend runs automated reconnection handlers applying an exponential backoff sequence. The client safely transitions back to periodic REST calls if socket streams remain unresponsive.
+* **Manual Overriding Control:** If the secure `/ws/manual-control` pipeline encounters packet drops or network degradation, the session terminates immediately. Automated reconnection behaviors are strictly disabled for operator safety. The technician must explicitly re-initialize manual mode to re-establish manual operational control.
 
 ---
 
-## 4. Güvenlik ve Emniyet Kısıtları
+## 4. System Security and Functional Safety Contraints
 
-Manuel kontrol WebSocket altyapısı aşağıdaki güvenlik mekanizmalarıyla korunur:
+The manual operation socket architecture implements several integrated layer protections:
 
-- **Backend Validation:** Frontend'den gelen değerler (hız, açı) backend tarafından zorunlu `clamp` limitlerine tabi tutulur. Frontend'in filtreleri atlaması durumu engellenir.
-- **Deadman Switch:** `deadman_pressed == false` içeren paketler kesinlikle reddedilir ve robota güvenlik amaçlı `0` hız komutu yollanır.
-- **Watchdog (500 ms):** GUI Backend, 500 ms boyunca frontend'den yeni bir paket almazsa (Wi-Fi kopması vb.), robota anında "DUR" komutu gönderir.
-- **Disconnect Safety Stop:** WebSocket bağlantısı herhangi bir nedenle sonlandığında, backend üzerindeki `finally` bloğu çalışarak robota acil durdurma sinyali gönderir.
-- **Single Session Lock:** Güvenlik nedeniyle, aynı anda sadece tek bir WebSocket manuel kontrol oturumu açık kalabilir. İkinci bağlantılar anında reddedilir.
+* **Backend Validation:** Raw velocity inputs received from the client app are run through programmatic `clamp` validation blocks on the server. This prevents corrupted client-side frameworks from bypassing hardware velocity thresholds.
+* **Deadman Intercept:** Packets showing `deadman_pressed == false` are blocked with maximum priority, overriding input instructions and forcing zero velocity tracking variables (`0` speed target parameters) down to the machine actuators.
+* **Safety Watchdog (500 ms):** If the GUI Backend encounters a packet dropout duration exceeding 500 ms (caused by factory Wi-Fi degradation, connection drops, etc.), it calls an automated fallback script forcing an instant stop profile onto the vehicle.
+* **Disconnect Safety Stop:** Upon unexpected pipeline closure, a server-side `finally` loop intercepts the event to transmit immediate emergency engine braking instructions to the physical robot platform.
+* **Single Session Exclusivity:** To eliminate conflicting command conflicts, only a single unique connection token is allowed to hook into manual overriding processes. Concurrent manual control session requests are immediately rejected by the connection manager.
