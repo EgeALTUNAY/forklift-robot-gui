@@ -1,12 +1,14 @@
 # Robot Backend API Contract
 
-GUI backend, robot backend ile aşağıdaki REST endpointleri üzerinden haberleşir. Tüm endpointler JSON formatında veri alışverişi yapar.
+The GUI backend communicates with the robot backend via the following REST endpoints. All endpoints exchange data exclusively in JSON format.
 
-## Endpointler
+## Endpoints
 
 ### GET /state
-Robotun anlık durumunu döndürür.
+
+Returns the current real-time state of the robot.
 **Schema**: `RobotState`
+
 ```json
 {
   "mode": "IDLE",
@@ -17,27 +19,34 @@ Robotun anlık durumunu döndürür.
   "connection_ok": true,
   "timestamp": "2026-05-11T12:30:00Z"
 }
+
 ```
 
 ### GET /task/status
-Mevcut görev durumunu döndürür.
+
+Returns the active task status execution parameters.
 **Schema**: `TaskStatus`
 
 ### GET /map/runtime
-Harita çalışma zamanı durumunu (aktif segmentler, okunan QR'lar vb.) döndürür.
+
+Returns the map runtime status data (active segments, registered QR codes, etc.).
 **Schema**: `MapRuntimeStatus`
 
 ### GET /qr/events?limit=10
-Son QR okuma olaylarını listeler.
+
+Lists the most recent physical QR tracking events.
 **Schema**: `list[QrEvent]`
 
 ### GET /plc/logs?limit=10
-Son PLC loglarını listeler.
+
+Lists the most recent low-level PLC diagnostics logs.
 **Schema**: `list[PlcLog]`
 
 ### GET /plc/status
-PLC'nin anlık bağlantı ve çalışma durumunu döndürür.
+
+Returns the immediate connectivity and CPU operation state of the PLC system.
 **Schema**: `PlcStatus`
+
 ```json
 {
   "connected": true,
@@ -45,23 +54,29 @@ PLC'nin anlık bağlantı ve çalışma durumunu döndürür.
   "last_heartbeat": "2026-05-11T12:30:00Z",
   "error_count": 0
 }
+
 ```
 
 ### GET /plc/messages?limit=20
-PLC'den gelen sistem mesajlarını listeler.
+
+Lists the system messaging events received from the PLC network layer.
 **Schema**: `list[PlcMessage]`
 
 ### GET /alerts?limit=20
-Aktif veya son uyarıları listeler.
+
+Lists the active or most recent mechanical warnings and system alerts.
 **Schema**: `list[AlertItem]`
 
 ### GET /manual/status
-Manuel kontrol durumunu döndürür.
+
+Returns the current manual overriding operational status.
 **Schema**: `ManualControlStatus`
 
 ### GET /camera/status
-Kamera bağlantı ve yayın durumunu döndürür.
+
+Returns the connectivity and stream validation metrics of the optical hardware system.
 **Schema**: `CameraStatus`
+
 ```json
 {
   "enabled": true,
@@ -69,39 +84,48 @@ Kamera bağlantı ve yayın durumunu döndürür.
   "stream_type": "MJPEG",
   "connected": true,
   "latency_ms": 35,
-  "message": "Kamera sistemi aktif."
+  "message": "Camera system active."
 }
+
 ```
 
 > [!IMPORTANT]
-> Frontend, robotun `stream_url` bilgisine doğrudan erişmez. GUI Backend, güvenliği sağlamak için bu yayını `/api/camera/stream` üzerinden proxy eder.
+> The client frontend never directly hits the robot's native `stream_url`. The GUI Backend proxies this transmission through `/api/camera/stream` to guarantee network isolation.
 
+---
 
-
-## Aksiyonlar (POST)
+## Actions (POST)
 
 ### POST /manual/enable
-Manuel modu aktif eder.
+
+Activates the manual operation override mode.
 **Response**: `{ "success": boolean }`
 
 ### POST /manual/disable
-Manuel modu pasif eder.
+
+Deactivates the manual operation override mode.
 **Response**: `{ "success": boolean }`
 
 ### POST /manual/command
-Manuel hareket komutu gönderir.
+
+Dispatches a manual velocity overriding frame to the vehicle drivetrain.
 **Body**: `ManualControlCommand`
 **Response**: `{ "success": boolean }`
 
 ### POST /emergency-stop
-Acil durdurmayı tetikler.
+
+Triggers a high-priority software Emergency Stop (E-Stop) loop.
 **Response**: `{ "success": boolean }`
 
 ### POST /release-emergency-stop
-Acil durdurmayı resetler.
+
+Resets and releases the active Emergency Stop constraint.
 **Response**: `{ "success": boolean }`
 
-## Ortak Kurallar
-- Tüm endpointler `application/json` kabul eder ve döner.
-- Hata durumlarında standart HTTP status kodları (4xx, 5xx) kullanılır.
-- GUI Backend, robot backend'e erişemezse "fallback" (fake veri veya null) moduna geçer.
+---
+
+## Shared Specifications
+
+* All network interactions accept and return data structured under `application/json` boundaries.
+* Exceptional runtime errors explicitly resolve via standard descriptive HTTP status codes (4xx, 5xx series).
+* If the GUI Backend layer fails to map network queries to the physical robot backend, it automatically cascades back to safe fallback structures (synthetic data generators or null parameters).
