@@ -1,72 +1,85 @@
-# Manuel Kontrol Güvenlik Mimarisi ve Prosedürleri
+# Manual Control Safety Architecture and Procedures
 
-Bu doküman, forklift robotunun manuel kontrol (gamepad/kumanda) sisteminin güvenlik katmanlarını, çalışma mantığını ve test prosedürlerini detaylandırır. Sistem, "Önce Güvenlik" (Safety First) prensibiyle tasarlanmıştır.
+This document details the safety layers, operational logic, and testing procedures of the forklift robot's manual control (gamepad/controller) system. The system is architected around the "Safety First" principle.
 
-## 1. Veri Akış Mimarisi
+## 1. Data Flow Architecture
 
-Manuel kontrol komutları aşağıdaki zinciri takip eder:
-`Gamepad (Donanım) -> Frontend (Browser) -> GUI Backend (Python/FastAPI) -> Robot Backend (C++/ROS/Python)`
+Manual control commands propagate through the following pipeline:
+`Gamepad (Hardware) -> Frontend (Browser) -> GUI Backend (Python/FastAPI) -> Robot Backend (C++/ROS/Python)`
 
-**Kritik Kural:** Frontend asla robotun kendi backend'ine (9000) doğrudan komut göndermez. Tüm komutlar GUI Backend'in güvenlik filtrelerinden geçmek zorundadır.
+**Critical Rule:** The frontend never transmits commands directly to the robot's native backend (Port 9000). All commands must pass through the security and filtration layers of the GUI Backend.
 
-## 2. Güvenlik Katmanları
+## 2. Safety Layers
 
-### A. Fiziksel Anahtar Şartı (Hardware Interlock)
-Robotun üzerindeki fiziksel anahtar `MANUAL` konumunda değilse, yazılım üzerinden gönderilen hiçbir hareket komutu işleme alınmaz. Sistem, `physical_switch_position` bilgisini her pakette kontrol eder.
+### A. Physical Key Interlock (Hardware Interlock)
 
-### B. Deadman Switch Mantığı
-Operatörün aktif olarak robotu kontrol ettiğini kanıtlaması gerekir.
--   Gamepad üzerindeki **Deadman butonu (A/Cross)** basılı tutulmalıdır.
--   Buton bırakıldığı anda hız değerleri ne olursa olsun sistem anında robotu durdurur (`vx=0, omega=0`).
+If the physical key switch mounted on the robot is not turned to the `MANUAL` position, no motion commands sent via software will be processed. The system validates the `physical_switch_position` parameter inside every incoming packet.
 
-### C. E-Stop Önceliği
-Yazılımsal veya fiziksel Acil Stop (E-Stop) aktif olduğu sürece, manuel kontrol modülü kilitlenir ve komutlar reddedilir. E-Stop resetlenmeden robot hareket ettirilemez.
+### B. Deadman Switch Logic
 
-### D. Backend-Side Clamping (Sınırlandırma)
-Frontend'den gelen ham hız değerleri, GUI Backend tarafında donanımsal limitlere zorunlu olarak tabi tutulur:
--   **Max Hız (vx):** ±0.5 m/s
--   **Max Açısal Hız (w):** ±0.8 rad/s
--   **Max Asansör Komutu (lift):** ±0.3 normalize komut
+The operator must continuously verify active, conscious control over the machinery.
 
-### E. Komut Kabul Koşulları
-Bir komutun robota iletilebilmesi için aşağıdaki tüm şartların eşzamanlı olarak sağlanması gerekir:
--   `physical_switch_position == MANUAL`
--   `remote_control_enabled == true`
--   `remote_control_state == ACTIVE`
--   `emergency_stop == false`
--   `deadman_pressed == true`
--   Değerlerin backend clamp sınırlarında veya clamp edilmiş olması.
+* The **Deadman button (A/Cross)** on the gamepad must be kept pressed.
+* The exact moment this button is released, the system triggers an instantaneous stop command (`vx=0, omega=0`), regardless of current velocity targets.
 
-### E. Watchdog Zamanlayıcısı (500ms)
-Ağ kopması veya frontend donması durumunda robotun son aldığı komutla gitmesini engeller.
--   Eğer GUI Backend, son 500 ms içinde yeni bir kontrol paketi almazsa otomatik olarak robotu durdurur.
+### C. E-Stop Priority
+
+As long as a software or hardware Emergency Stop (E-Stop) state remains triggered, the manual control module enters a hard-locked state and rejects all input payloads. The robot cannot be moved until the E-Stop loop is manually reset.
+
+### D. Backend-Side Clamping
+
+Raw velocity values received from the frontend are strictly constrained on the GUI Backend layer to match safe physical thresholds:
+
+* **Max Linear Velocity (vx):** ±0.5 m/s
+* **Max Angular Velocity (w):** ±0.8 rad/s
+* **Max Lift Command (lift):** ±0.3 normalized range
+
+### E. Command Execution Prerequisites
+
+A packet is only forwarded to the physical robot if all of the following conditions are simultaneously met:
+
+* `physical_switch_position == MANUAL`
+* `remote_control_enabled == true`
+* `remote_control_state == ACTIVE`
+* `emergency_stop == false`
+* `deadman_pressed == true`
+* Data inputs fall within or have been processed by backend clamping boundaries.
+
+### E. Watchdog Timer (500ms)
+
+Prevents runaway scenarios caused by network disconnections or frontend browser freezing, ensuring the vehicle does not continue moving on its last received instruction.
+
+* If the GUI Backend does not register a new control payload within 500 ms, it executes an automated safety stop routine.
 
 ### F. WebSocket Disconnect Safety
-Bağlantı koptuğunda (tarayıcı kapanması, Wi-Fi kopması vb.), backend tarafındaki `finally` bloğu devreye girerek robota emniyet amaçlı "Sıfır Hız" komutu gönderir.
 
-### G. Single Session Lock (Tekil Oturum)
-Aynı anda sadece tek bir operatörün robotu manuel kontrol etmesine izin verilir. İkinci bir operatör bağlanmaya çalıştığında reddedilir.
+If the connection drops unexpectedly (browser tab closure, Wi-Fi dropouts, etc.), a backend `finally` block activates to instantly transmit a "Zero Velocity" safety instruction to the robot hardware.
 
-## 3. Geri Bildirim Mekanizması (ACK/Reject)
+### G. Single Session Lock
 
-Her manuel komut paketi için backend'den anlık bir onay (ACK) döner:
--   **Accepted:** Komut tüm filtrelerden geçti ve robota iletildi.
--   **Rejected:** Komut reddedildi. Reddedilme sebebi operatör ekranında net bir şekilde gösterilir (örn: "E-Stop aktif", "Fiziksel anahtar AUTO konumda", "Deadman basılı değil").
+Only one operator session is permitted to access manual controls at any given time. Any secondary connection attempts are systematically rejected.
 
-## 4. İlk Fiziksel Test Güvenlik Prosedürü
+## 3. Feedback Mechanism (ACK/Reject)
 
-Robot ilk kez fiziksel olarak hareket ettirileceğinde aşağıdaki adımlar izlenmelidir:
+Every manual input payload returns an instantaneous acknowledgment (ACK) status packet from the backend:
 
-1.  **Askı Testi:** Robotun tahrik tekerleklerini yerden kesin (askıya alın).
-2.  **Boşta Test (Fake Mode):** GUI Backend'i "Fake" modda (`ROBOT_CLIENT_MODE=fake`) çalıştırarak UI üzerinden komut akışını ve ACK/Reject mekanizmasını izleyin.
-3.  **Entegrasyon Testi (Real+Mock Mode):** Mock robot backend (Port 9000) ile `ROBOT_CLIENT_MODE=real` modunda test ederek bağlantı ve güvenlik katmanlarının doğruluğunu teyit edin.
-4.  **Düşük Hız:** Gerçek sürüşte hız limitlerini backend tarafında %10 seviyesine çekin.
-4.  **Açık Alan:** Testi mutlaka geniş ve engelsiz bir alanda yapın.
-5.  **E-Stop Hazırlığı:** Operatörün bir eli gamepad'de iken, diğer el fiziksel E-Stop butonunun üzerinde hazır beklemelidir.
+* **Accepted:** The payload cleared all validation filters and was executed on the robot stack.
+* **Rejected:** The command was blocked. The specific reason for the failure is printed explicitly on the operator's display console (e.g., "E-Stop active", "Physical switch set to AUTO", "Deadman switch released").
 
-## 5. Bilinen Sınırlamalar ve Uyarılar
+## 4. Pre-Flight Physical Testing Safety Procedures
 
--   **Donanım Testi Şarttır:** Yazılımsal güvenlik katmanları (GUI backend kontrolleri), gerçek motor sürücüleri, fren sistemleri ve donanımsal E-Stop devresinin saha testinin yerine geçmez. Yazılım onaylasa dahi fiziksel güvenlik her zaman önceliklidir.
--   **Ağ Gecikmesi:** WebSocket bağlantısı üzerinden kontrol yapıldığı için yüksek pingli (latency > 100ms) ağlarda kontrol hassasiyeti düşebilir.
--   **Wi-Fi Gücü:** Robotun Wi-Fi sinyalinin zayıf olduğu bölgelerde Watchdog sık sık devreye girerek robotu durdurabilir.
--   **Donanım Uyumu:** Gamepad mapping'i (eksenler) standart Xbox/Playstation kontrolcülerine göredir; farklı modellerde `useGamepadController` hook'unun revize edilmesi gerekebilir.
+When executing motion commands on physical hardware for the first time, operators must log and execute these steps:
+
+1. **Chassis Elevation:** Elevate the robot completely to lift the drive wheels clear off the ground.
+2. **Idle Testing (Fake Mode):** Run the GUI Backend in "Fake" mode (`ROBOT_CLIENT_MODE=fake`) to observe code processing pipelines and confirm ACK/Reject readouts via the UI.
+3. **Integration Testing (Real+Mock Mode):** Pair the system against the mock robot backend (Port 9000) using `ROBOT_CLIENT_MODE=real` to verify structural link integrity across safety layers.
+4. **Low Velocity Constraints:** Scale backend speed limits down to a 10% maximum profile during initial live surface tests.
+5. **Clear Proximity:** Only conduct drive operations in a spacious, unobstructed testing field.
+6. **Emergency Intercept Readiness:** While one hand manages the gamepad controller, the operator's secondary hand must remain positioned directly over the physical E-Stop button.
+
+## 5. Known Limitations and Warnings
+
+* **Hardware Validation Mandatory:** Software safety checks (GUI backend logic) do not replace live validation of physical motor drives, mechanical brakes, and hardware-wired emergency stop relays. Physical protection takes priority over software confirmations.
+* **Network Latency Boundaries:** Because instructions are transmitted over a WebSocket network bridge, latency exceeding 100ms may degrade tracking precision and response handling.
+* **Wireless Signal Consistency:** Operating the robot through zones with weak Wi-Fi signal coverage can cause frequent Watchdog trips, triggering recurring safety stops.
+* **Controller Layout Compliance:** Gamepad structural mapping profiles align with standard Xbox/Playstation controller schemes; third-party configurations may require modifications inside the `useGamepadController` application hook.
