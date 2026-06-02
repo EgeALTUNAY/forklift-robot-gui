@@ -1,12 +1,12 @@
 # Forklift Robot GUI
 
-Sanayide Robotik Uygulamalar yarışması için geliştirilen **forklift robot operatör arayüzü** projesidir. Sistem; robotun durumunu, görev ilerlemesini, QR verilerini, PLC haberleşmesini, kamera görüntüsünü ve manuel kontrol durumunu tek bir dashboard üzerinden izlemek ve yönetmek için tasarlanmıştır.
+An operator interface dashboard project developed for the "Robotics Applications in Industry" competition. The system is designed to monitor and manage the robot's status, task progress, QR data, PLC communication, camera feed, and manual control state through a single unified dashboard.
 
-Bu proje robotun ana kontrol yazılımı değildir. Robotun kendi backend’i ayrı çalışır. Bu uygulama, robot backend ile operatör arayüzü arasında çalışan bir **GUI Backend + React Frontend** mimarisidir.
+This project is not the main control software of the robot. The robot's own backend runs separately. This application implements a **GUI Backend + React Frontend** architecture that operates between the robot backend and the operator interface.
 
 ---
 
-## Mimari
+## Architecture
 
 ```txt
 React Frontend
@@ -20,10 +20,11 @@ FastAPI GUI Backend
 Robot Backend / Mock Robot Backend
       │
       ▼
-PLC / QR / Motor / Kamera / Sensör / Robot logic
+PLC / QR / Motor / Camera / Sensor / Robot logic
+
 ```
 
-Frontend hiçbir zaman robot backend’e doğrudan bağlanmaz. Tüm trafik GUI Backend üzerinden geçer.
+The frontend never connects directly to the robot backend. All traffic passes through the GUI Backend.
 
 ```txt
 Frontend              → GUI Backend :8000
@@ -31,28 +32,29 @@ GUI Backend           → Robot / Mock Backend :9000
 Camera stream proxy   → /api/camera/stream
 Dashboard WebSocket   → /ws/dashboard
 Manual control WS     → /ws/manual-control
+
 ```
 
 ---
 
-## Ana Özellikler
+## Main Features
 
-- Operatör dashboard ekranı
-- Fabrika haritası üzerinde robot, rota, QR ve kapı durumlarının gösterimi
-- Harita üzerinden rota tanımlama
-- Aktif rota seçimi
-- Robot görev durumu takibi
-- QR okuma olayları
-- PLC mesajları ve teknik PLC logları
-- Kamera görüntüsü için GUI Backend proxy altyapısı
-- Gamepad/manual control WebSocket altyapısı
-- Deadman switch, E-Stop, watchdog ve single-session güvenlikleri
-- Fake mode ve real + mock backend mode desteği
-- Dokümante edilmiş robot backend ve WebSocket sözleşmeleri
+* Operator dashboard interface
+* Factory map visualization showing robot position, route, QR codes, and door statuses
+* Routing capabilities directly from the map interface
+* Active route selection
+* Robot task status tracking
+* QR reading events
+* PLC messages and technical PLC logs
+* GUI Backend proxy infrastructure for camera streaming
+* Gamepad/manual control WebSocket infrastructure
+* Deadman switch, E-Stop, watchdog, and single-session security mechanisms
+* Support for fake mode and real + mock backend mode
+* Fully documented robot backend and WebSocket data contracts
 
 ---
 
-## Klasör Yapısı
+## Directory Structure
 
 ```txt
 forklift-robot-gui/
@@ -84,13 +86,14 @@ forklift-robot-gui/
 │   └── operator-demo-flow.md
 │
 └── README.md
+
 ```
 
 ---
 
-## Gereksinimler
+## Requirements
 
-Backend için:
+For Backend:
 
 ```txt
 Python 3.12+
@@ -98,9 +101,10 @@ FastAPI
 Uvicorn
 httpx
 pydantic
+
 ```
 
-Frontend için:
+For Frontend:
 
 ```txt
 Node.js
@@ -108,85 +112,90 @@ npm
 React
 TypeScript
 Vite
+
 ```
 
 ---
 
-## Kurulum
+## Installation
 
-### 1. Backend ortamı
+### 1. Backend Environment
 
-Proje kök dizinindeyken:
+From the project root directory:
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r backend/requirements.txt
+
 ```
 
-### 2. Frontend bağımlılıkları
+### 2. Frontend Dependencies
 
 ```bash
 cd frontend
 npm install
+
 ```
 
 ---
 
-## NPM Scriptleri
+## NPM Scripts
 
-Proje kök dizininden aşağıdaki komutlar çalıştırılabilir:
+The following commands can be executed from the project root directory:
 
-| Komut | Ne açar? | Ne zaman kullanılır? |
+| Command | What it runs | When to use it? |
 | --- | --- | --- |
-| `npm run help` | Kullanılabilir root komutlarını ve açıklamalarını terminale yazar. | Hangi modun ne işe yaradığını hızlıca görmek için kullanılır. |
-| `npm run dev:fake` | React frontend + GUI Backend açılır. Robot backend gerekmez; GUI Backend fake client ile çalışır. | Hızlı UI/fake data testi, dashboard geliştirme ve robot backend olmadan deneme için kullanılır. Digital Twin Demo Mode gerçekçi şekilde burada çalışmayabilir. |
-| `npm run dev:mock` | Mock Robot Backend `:9000`, GUI Backend `:8000` ve frontend `:5173` açılır. GUI Backend `ROBOT_CLIENT_MODE=real` ve `ROBOT_BACKEND_URL=http://localhost:9000` ile çalışır. | Entegrasyon testi ve Digital Twin Demo Mode için önerilir. Demo sekmesindeki **Demo Görevini Başlat** bu modda kullanılmalıdır. |
-| `npm run frontend:dev` | Sadece React frontend dev server açılır. | Backend zaten çalışırken yalnızca frontend geliştirmek için kullanılır. |
-| `npm run backend:fake` | Sadece GUI Backend fake mode ile açılır. | Frontend’i ayrı çalıştırıp GUI Backend’i fake data ile test etmek için kullanılır. |
-| `npm run mock:backend` | Sadece Mock Robot Backend `:9000` portunda açılır. | GUI Backend veya entegrasyon akışlarını mock robot servisine karşı denemek için kullanılır. |
-| `npm run backend:mock` | Sadece GUI Backend real mode’da, mock backend’e bağlı şekilde açılır. | Mock Robot Backend zaten çalışırken GUI Backend entegrasyonunu test etmek için kullanılır. |
-| `npm run build` | Frontend production build çalıştırır; backend için `python compileall` ve ana modül import kontrolü yapar. | Demo veya teslim öncesi frontend build + backend syntax/import check doğrulaması için kullanılır. |
-| `npm run check` | Şimdilik `npm run build` ile aynı kontrolleri çalıştırır. | Demo öncesi hızlı doğrulama komutu olarak kullanılır. |
+| `npm run help` | Prints available root commands and descriptions to the terminal. | Used to quickly check what each mode does. |
+| `npm run dev:fake` | Starts React frontend + GUI Backend. Robot backend is not required; GUI Backend runs with a fake client. | Used for quick UI/fake data testing, dashboard development, and running without a robot backend. Digital Twin Demo Mode may not function realistically here. |
+| `npm run dev:mock` | Starts Mock Robot Backend `:9000`, GUI Backend `:8000`, and frontend `:5173`. GUI Backend runs with `ROBOT_CLIENT_MODE=real` and `ROBOT_BACKEND_URL=http://localhost:9000`. | Recommended for integration testing and Digital Twin Demo Mode. The **Start Demo Task** button under the demo tab should be used in this mode. |
+| `npm run frontend:dev` | Starts only the React frontend dev server. | Used exclusively for frontend development when the backend is already running. |
+| `npm run backend:fake` | Starts only the GUI Backend in fake mode. | Used to test the GUI Backend with fake data while running the frontend separately. |
+| `npm run mock:backend` | Starts only the Mock Robot Backend on port `:9000`. | Used to test GUI Backend or integration flows against the mock robot service. |
+| `npm run backend:mock` | Starts only the GUI Backend in real mode, connected to the mock backend. | Used to test GUI Backend integration when Mock Robot Backend is already running. |
+| `npm run build` | Runs frontend production build; performs backend `python compileall` and main module import checks. | Used for validation prior to demonstrations or final submission to ensure frontend build and backend syntax/import integrity. |
+| `npm run check` | Currently executes the same validation checks as `npm run build`. | Used as a quick verification command prior to demos. |
 
-Kısa özet:
+Quick Summary:
 
-- `dev:fake` = hızlı UI/fake data testi
-- `dev:mock` = mock backend + GUI backend + frontend; Digital Twin Demo Mode için önerilir
-- `build` = frontend build + backend compile/import check
+* `dev:fake` = quick UI/fake data testing
+* `dev:mock` = mock backend + GUI backend + frontend; recommended for Digital Twin Demo Mode
+* `build` = frontend build + backend compile/import verification
 
 ---
 
-## Environment Ayarları
+## Environment Configuration
 
-Root veya backend tarafında `.env` kullanılabilir.
+A `.env` file can be configured at the root or within the backend directory.
 
-Örnek backend ayarları:
+Example backend configuration:
 
 ```env
 ROBOT_CLIENT_MODE=fake
 ROBOT_BACKEND_URL=http://localhost:9000
 ROBOT_BACKEND_TIMEOUT_SECONDS=2.0
 FRONTEND_ORIGIN=http://localhost:5173
+
 ```
 
-Frontend için `frontend/.env.example` dosyasına göre `.env` oluşturulabilir:
+For the frontend, create a `.env` file based on the `frontend/.env.example` template:
 
 ```env
 VITE_GUI_BACKEND_HTTP_URL=http://localhost:8000
 VITE_GUI_BACKEND_WS_URL=ws://localhost:8000/ws/dashboard
 VITE_GUI_BACKEND_MANUAL_WS_URL=ws://localhost:8000/ws/manual-control
+
 ```
 
-`.env` dosyaları git’e eklenmemelidir.
+`.env` files should not be committed to version control.
 
 ---
 
-## Çalıştırma Modları
+## Execution Modes
 
 ### 1. Fake Mode
 
-Bu modda ayrı robot backend gerekmez. GUI Backend kendi fake verisini üretir.
+In this mode, a separate robot backend is not required. The GUI Backend generates its own synthetic data.
 
 Terminal 1:
 
@@ -194,6 +203,7 @@ Terminal 1:
 cd backend
 source ../venv/bin/activate
 ROBOT_CLIENT_MODE=fake uvicorn app.main:app --reload --port 8000
+
 ```
 
 Terminal 2:
@@ -201,19 +211,21 @@ Terminal 2:
 ```bash
 cd frontend
 npm run dev
+
 ```
 
-Frontend:
+Frontend Access:
 
 ```txt
 http://localhost:5173
+
 ```
 
 ---
 
 ### 2. Real + Mock Backend Mode
 
-Bu modda GUI Backend, gerçek robot backend yerine mock robot backend ile haberleşir. Entegrasyon testi için önerilir.
+In this mode, the GUI Backend communicates with a mock robot backend instead of the physical robot software. This is recommended for comprehensive integration testing.
 
 Terminal 1 — Mock Robot Backend:
 
@@ -221,6 +233,7 @@ Terminal 1 — Mock Robot Backend:
 cd backend
 source ../venv/bin/activate
 uvicorn mock_robot_backend.main:app --reload --port 9000
+
 ```
 
 Terminal 2 — GUI Backend:
@@ -229,6 +242,7 @@ Terminal 2 — GUI Backend:
 cd backend
 source ../venv/bin/activate
 ROBOT_CLIENT_MODE=real ROBOT_BACKEND_URL=http://localhost:9000 uvicorn app.main:app --reload --port 8000
+
 ```
 
 Terminal 3 — Frontend:
@@ -236,54 +250,56 @@ Terminal 3 — Frontend:
 ```bash
 cd frontend
 npm run dev
+
 ```
 
-Kontrol endpointleri:
+Control Endpoints:
 
 ```txt
 http://localhost:9000/health
 http://localhost:8000/api/health/robot-backend
 http://localhost:8000/api/dashboard/snapshot
 http://localhost:5173
+
 ```
 
 ---
 
-## Dashboard İçeriği
+## Dashboard Contents
 
-Operatör dashboard ekranında şu bilgiler izlenir:
+The operator dashboard panel displays the following real-time telemetry:
 
-- Robot bağlantı durumu
-- Batarya, hız ve yük bilgisi
-- Fabrika haritası ve robot konumu
-- Aktif rota ve görev ilerlemesi
-- Kamera görüntüsü
-- Hata ve uyarılar
-- QR okuma olayları
-- PLC mesajları
-- Teknik PLC logları
-- Manuel kontrol ve gamepad durumu
-
----
-
-## Rota Tanımlama
-
-Rota tanımlama ekranında kullanıcı:
-
-1. **Haritadan Rota Oluştur** butonuna basar.
-2. A noktalarından bir alma noktası seçer: `A1`, `A2`, `A3`.
-3. B noktalarından bir bırakma noktası seçer: `B1`, `B2`, `B3`.
-4. Sistem segmentleri ve QR sırasını otomatik hesaplar.
-5. Rota kaydedilir.
-6. İstenirse **Aktif Rota Yap** ile dashboard’a taşınır.
-
-Başlangıç noktası kullanıcı tarafından seçilmez; `START` sabittir.
+* Robot connection status
+* Battery, speed, and payload information
+* Factory map layout and real-time robot position
+* Active route details and task progression
+* Camera video streaming
+* Errors, faults, and alert diagnostics
+* QR code tracking events
+* PLC data streams and system messages
+* Low-level technical PLC logs
+* Manual operation tracking and gamepad inputs
 
 ---
 
-## Manuel Kontrol
+## Route Definition
 
-Manuel kontrol akışı:
+Within the routing management system, the operator can:
+
+1. Click the **Create Route from Map** button.
+2. Select an ingestion node from the A points: `A1`, `A2`, `A3`.
+3. Select a drop-off node from the B points: `B1`, `B2`, `B3`.
+4. The system automatically computes the required track segments and QR sequences.
+5. The route configuration is stored.
+6. The operator can optionally trigger **Set as Active Route** to push it live to the main dashboard.
+
+The origin coordinate cannot be selected by the operator; `START` is statically defined.
+
+---
+
+## Manual Control
+
+The low-latency manual overriding pipeline follows this structure:
 
 ```txt
 Gamepad
@@ -293,31 +309,33 @@ React Frontend
 FastAPI GUI Backend
    ↓
 Robot Backend
+
 ```
 
-Güvenlik kuralları:
+Safety Restrictions:
 
-- Fiziksel anahtar `MANUAL` değilse hareket komutları reddedilir.
-- Deadman butonu basılı değilse hareket komutu kabul edilmez.
-- E-Stop aktifken tüm hareket komutları reddedilir.
-- Backend tarafında hız değerleri clamp edilir.
-- 500 ms boyunca komut gelmezse watchdog robotu durdurur.
-- WebSocket koparsa safety stop komutu gönderilir.
-- Aynı anda yalnızca bir manuel kontrol oturumuna izin verilir.
+* Movement commands are systematically rejected unless the physical key switch is turned to `MANUAL`.
+* Velocity commands will not execute if the deadman switch is unpressed.
+* All structural motion commands are hard-blocked during an active E-Stop state.
+* Linear and angular velocities are enforcedly clamped on the backend.
+* A built-in watchdog stops all autonomous movement if no input payload is registered within 500 ms.
+* A hard stop safety command is dispatched automatically upon WebSocket disconnection.
+* The interface enforces single-session exclusivity, allowing only one manual controller connection at any given time.
 
-Detaylar için: `docs/manual-control-safety.md`
+For full architectural safety details, refer to: `docs/manual-control-safety.md`
 
 ---
 
-## Kamera
+## Camera System
 
-Kamera görüntüsü doğrudan robot backend’den alınmaz. Frontend yalnızca GUI Backend proxy endpointine bağlanır:
+The video stream is decoupled from the main robot interface. The frontend hooks solely into the proxy system provided by the GUI Backend:
 
 ```txt
 GET /api/camera/stream
+
 ```
 
-Akış:
+Data Pipeline:
 
 ```txt
 Frontend
@@ -325,26 +343,27 @@ Frontend
 GUI Backend /api/camera/stream
    ↓
 Robot Backend /camera/stream
+
 ```
 
-İlk MVP’de MJPEG proxy desteklenir. WebRTC sonraki aşama için placeholder olarak bırakılmıştır.
+The initial MVP version utilizes an MJPEG proxy configuration. WebRTC scaffolding is preserved within the architecture as a placeholder for next-phase deployment.
 
 ---
 
-## Dokümantasyon
+## Documentation
 
-Önemli dokümanlar:
+Core operational references:
 
-- `docs/robot-backend-contract.md`: Robot backend’in sağlaması gereken endpoint ve JSON yapılarını açıklar.
-- `docs/websocket-contract.md`: Dashboard ve manuel kontrol WebSocket sözleşmelerini açıklar.
-- `docs/manual-control-safety.md`: Manuel kontrol güvenlik mimarisini ve ilk fiziksel test prosedürünü açıklar.
-- `docs/operator-demo-flow.md`: Demo sırasında izlenecek çalıştırma ve test adımlarını açıklar.
+* `docs/robot-backend-contract.md`: Outlines API specifications and JSON endpoints required by the physical robot backend layer.
+* `docs/websocket-contract.md`: Establishes payload syntax for the primary dashboard and manual operation WebSockets.
+* `docs/manual-control-safety.md`: Defines hardware overriding safety structures and verification parameters for live test deployments.
+* `docs/operator-demo-flow.md`: Steps through step-by-step evaluation routines to run during product demonstrations.
 
 ---
 
-## Gerçek Robot Entegrasyonu İçin Gerekli Noktalar
+## Specifications for Physical Robot Integration
 
-Gerçek robot backend bağlanırken aşağıdaki endpointlerin contract ile uyumlu olması gerekir:
+When bridging to a real robot backend, the remote system must adhere to the data definitions across these endpoints:
 
 ```txt
 GET  /state
@@ -359,37 +378,38 @@ GET  /plc/messages
 GET  /plc/logs
 GET  /qr/events
 GET  /alerts
+
 ```
 
-Gerçek entegrasyon sırasında özellikle şunlar doğrulanmalıdır:
+The following checks are mandatory during the physical integration phase:
 
-- JSON alan adları Pydantic schema’larla uyumlu mu?
-- `vx`, `omega`, `lift` komutları robot backend tarafından doğru yorumlanıyor mu?
-- Fiziksel manuel anahtar bilgisi gerçek donanımdan geliyor mu?
-- Kamera stream’i MJPEG/WebRTC olarak çalışıyor mu?
-- PLC mesajları UI’da okunabilir formatta geliyor mu?
-- QR okuma ve harita runtime verileri doğru güncelleniyor mu?
-
----
-
-## İlk Fiziksel Test Uyarısı
-
-Gerçek robot üzerinde ilk testler yapılırken:
-
-- Robot düşük hız limitlerinde çalıştırılmalıdır.
-- Tekerlekler mümkünse askıya alınmalıdır.
-- Fiziksel E-Stop operatörün elinin altında olmalıdır.
-- Deadman bırakıldığında robotun durduğu doğrulanmalıdır.
-- WebSocket kopunca safety stop çalıştığı doğrulanmalıdır.
-- E-Stop aktifken komutların reddedildiği doğrulanmalıdır.
-
-Bu yazılım güvenlik katmanları, gerçek motor sürücü, frenleme ve donanımsal E-Stop testlerinin yerine geçmez.
+* Ensure all raw JSON keys exactly match their respective Pydantic schema schemas.
+* Validate that the directional parameters `vx`, `omega`, and lifting operations (`lift`) align correctly with real actuator orientations.
+* Confirm that manual state registries map authentically to hardware toggle configurations.
+* Verify that camera pipelines compile properly under MJPEG or WebRTC configurations.
+* Ensure automated safety scripts transform PLC signals into clear, human-readable terminal alerts.
+* Verify tracking coordinate updates match sensor data from QR logs and active SLAM mappings.
 
 ---
 
-## Git Notları
+## Pre-Flight Live Field Testing Advice
 
-Aşağıdaki dosyalar commitlenmemelidir:
+When evaluating code functionality on the live industrial robot for the first time:
+
+* Restrict drive system profiles to minimum safe speed parameters.
+* Elevate or decouple mechanical drive wheels to completely avoid unintended traction.
+* Ensure a physical hardware Emergency Stop button remains instantly accessible to the oversight operator.
+* Confirm that releasing the deadman switch immediately halts all drive operations.
+* Test that breaking the network WebSocket connection successfully triggers a safety engine stop routine.
+* Affirm that command buffers ignore incoming instructions entirely while the E-Stop loop remains active.
+
+These software safety safeguards are secondary layers and do not replace physical testing of motor drives, mechanical brakes, and hardware-wired emergency stops.
+
+---
+
+## Version Control Rules
+
+The following file structures must be excluded from code tracking commits:
 
 ```txt
 .env
@@ -401,18 +421,20 @@ venv/
 __pycache__/
 .DS_Store
 *.dmg
+
 ```
 
-Örnek `.env` dosyaları commitlenebilir:
+Configuration templates should be committed to guide local setups:
 
 ```txt
 .env.example
 backend/.env.example
 frontend/.env.example
+
 ```
 
 ---
 
-## Durum
+## Project Status
 
-Proje şu an fake mode ve real + mock backend mode ile demo/test çalıştırmaya uygundur. Gerçek robot entegrasyonu için robot backend’in `docs/robot-backend-contract.md` dosyasındaki sözleşmeye uyması gerekir.
+The stack is ready for deployment across fake simulated modes and physical endpoint mock tests. Production integration onto real warehouse machinery requires that the custom robot control layer mirror the strict network contracts defined within `docs/robot-backend-contract.md`.
